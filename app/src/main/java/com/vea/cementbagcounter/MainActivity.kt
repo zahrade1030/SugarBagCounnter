@@ -21,7 +21,10 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
-import java.text.SimpleDateFormat
+import android.icu.text.SimpleDateFormat as IcuDateFormat
+import android.icu.util.Calendar
+import android.icu.util.PersianCalendar
+import java.io.OutputStreamWriter
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -35,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var detector: YoloDetector
 
     private val executor = Executors.newSingleThreadExecutor()
+
     private var running = true
     private var setupMode = true
     private var totalCount = 0
@@ -46,10 +50,50 @@ class MainActivity : AppCompatActivity() {
         getSharedPreferences("sugar_count_history", MODE_PRIVATE)
     }
 
+    private var pendingCsv = ""
+
+    private val exportLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.CreateDocument("text/csv")
+        ) { uri ->
+
+            if (uri == null) return@registerForActivityResult
+
+            try {
+                contentResolver.openOutputStream(uri)?.use { output ->
+
+                    OutputStreamWriter(
+                        output,
+                        Charsets.UTF_8
+                    ).use { writer ->
+
+                        // BOM برای نمایش صحیح فارسی در Excel
+                        writer.write("\uFEFF")
+                        writer.write(pendingCsv)
+                    }
+                }
+
+                AlertDialog.Builder(this)
+                    .setTitle("خروجی موفق")
+                    .setMessage("فایل سوابق با موفقیت ذخیره شد.")
+                    .setPositiveButton("باشه", null)
+                    .show()
+
+            } catch (e: Exception) {
+
+                AlertDialog.Builder(this)
+                    .setTitle("خطا")
+                    .setMessage("ذخیره فایل انجام نشد: ${e.localizedMessage}")
+                    .setPositiveButton("باشه", null)
+                    .show()
+            }
+        }
+
     private val permission =
         registerForActivityResult(
             ActivityResultContracts.RequestPermission()
         ) { granted ->
+
             if (granted) {
                 startCamera()
             } else {
@@ -140,6 +184,11 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER
         }
 
+        val thirdRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+
         fun addButton(
             row: LinearLayout,
             label: String,
@@ -188,6 +237,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         addButton(firstRow, "توقف") {
+
             running = false
 
             val saved = saveCurrentSession()
@@ -211,6 +261,14 @@ class MainActivity : AppCompatActivity() {
             showHistory()
         }
 
+        addButton(thirdRow, "گزارش آماری") {
+            showStatisticsMenu()
+        }
+
+        addButton(thirdRow, "خروجی Excel") {
+            exportExcel()
+        }
+
         base.addView(header)
 
         base.addView(
@@ -226,8 +284,20 @@ class MainActivity : AppCompatActivity() {
         base.addView(statusText)
         base.addView(firstRow)
         base.addView(secondRow)
+        base.addView(thirdRow)
 
         setContentView(base)
+    }
+
+    private fun getRecords(): JSONArray {
+
+        return try {
+            JSONArray(
+                historyPrefs.getString("records", "[]") ?: "[]"
+            )
+        } catch (e: Exception) {
+            JSONArray()
+        }
     }
 
     private fun saveCurrentSession(): Boolean {
@@ -238,13 +308,7 @@ class MainActivity : AppCompatActivity() {
 
         if (totalCount <= 0) return false
 
-        val oldRecords = try {
-            JSONArray(
-                historyPrefs.getString("records", "[]") ?: "[]"
-            )
-        } catch (e: Exception) {
-            JSONArray()
-        }
+        val oldRecords = getRecords()
 
         val newRecord = JSONObject().apply {
             put("count", totalCount)
@@ -255,7 +319,9 @@ class MainActivity : AppCompatActivity() {
         updatedRecords.put(newRecord)
 
         for (i in 0 until minOf(oldRecords.length(), 499)) {
+
             val item = oldRecords.optJSONObject(i)
+
             if (item != null) {
                 updatedRecords.put(item)
             }
@@ -268,42 +334,50 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
+    private fun createPersianFormatter(): IcuDateFormat {
+
+        return IcuDateFormat(
+            "yyyy/MM/dd   HH:mm",
+            Locale("fa", "IR")
+        ).apply {
+            calendar = PersianCalendar(
+                Locale("fa", "IR")
+            )
+        }
+    }
+
     private fun showHistory() {
 
-        val records = try {
-            JSONArray(
-                historyPrefs.getString("records", "[]") ?: "[]"
-            )
-        } catch (e: Exception) {
-            JSONArray()
-        }
+        val records = getRecords()
 
         if (records.length() == 0) {
+
             AlertDialog.Builder(this)
                 .setTitle("سوابق شمارش")
                 .setMessage("هنوز هیچ سابقه‌ای ثبت نشده است.")
                 .setPositiveButton("بستن", null)
                 .show()
+
             return
         }
 
-        val formatter = SimpleDateFormat(
-            "yyyy/MM/dd   HH:mm",
-            Locale("fa", "IR")
-        )
+        val formatter = createPersianFormatter()
 
         val historyText = StringBuilder()
 
         for (i in 0 until records.length()) {
+
             val item = records.optJSONObject(i) ?: continue
 
             val count = item.optInt("count", 0)
             val time = item.optLong("time", 0L)
 
             historyText.append("تعداد کیسه‌ها: $count\n")
+
             historyText.append(
                 "تاریخ و ساعت: ${formatter.format(Date(time))}\n"
             )
+
             historyText.append("------------------------\n")
         }
 
@@ -312,6 +386,233 @@ class MainActivity : AppCompatActivity() {
             .setMessage(historyText.toString())
             .setPositiveButton("بستن", null)
             .show()
+    }
+
+    // منوی گزارش روزانه، هفتگی و ماهانه
+    private fun showStatisticsMenu() {
+
+        val options = arrayOf(
+            "گزارش روزانه",
+            "گزارش هفتگی",
+            "گزارش ماهانه"
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle("گزارش آماری")
+            .setItems(options) { _, which ->
+
+                when (which) {
+                    0 -> showStatistics("daily")
+                    1 -> showStatistics("weekly")
+                    2 -> showStatistics("monthly")
+                }
+            }
+            .setNegativeButton("بستن", null)
+            .show()
+    }
+
+    private fun showStatistics(type: String) {
+
+        val records = getRecords()
+
+        if (records.length() == 0) {
+
+            AlertDialog.Builder(this)
+                .setTitle("گزارش آماری")
+                .setMessage("هنوز سابقه‌ای برای گزارش وجود ندارد.")
+                .setPositiveButton("بستن", null)
+                .show()
+
+            return
+        }
+
+        val groups = linkedMapOf<String, Pair<Int, Int>>()
+
+        val formatter = createPersianFormatter()
+
+        for (i in 0 until records.length()) {
+
+            val item = records.optJSONObject(i) ?: continue
+
+            val count = item.optInt("count", 0)
+            val time = item.optLong("time", 0L)
+
+            if (time <= 0 || count <= 0) continue
+
+            val calendar = PersianCalendar(
+                Locale("fa", "IR")
+            )
+
+            calendar.timeInMillis = time
+
+            val key: String
+            val title: String
+
+            when (type) {
+
+                "daily" -> {
+
+                    key = String.format(
+                        Locale.US,
+                        "%04d-%02d-%02d",
+                        calendar.get(Calendar.YEAR),
+                        calendar.get(Calendar.MONTH),
+                        calendar.get(Calendar.DAY_OF_MONTH)
+                    )
+
+                    title = IcuDateFormat(
+                        "yyyy/MM/dd",
+                        Locale("fa", "IR")
+                    ).apply {
+                        this.calendar = PersianCalendar(
+                            Locale("fa", "IR")
+                        )
+                    }.format(Date(time))
+                }
+
+                "weekly" -> {
+
+                    calendar.firstDayOfWeek = Calendar.SATURDAY
+
+                    val year = calendar.get(Calendar.YEAR_WOY)
+                    val week = calendar.get(Calendar.WEEK_OF_YEAR)
+
+                    key = "$year-$week"
+                    title = "سال $year، هفته $week"
+                }
+
+                else -> {
+
+                    val year = calendar.get(Calendar.YEAR)
+                    val month = calendar.get(Calendar.MONTH) + 1
+
+                    key = "$year-$month"
+
+                    title = String.format(
+                        Locale("fa", "IR"),
+                        "%04d/%02d",
+                        year,
+                        month
+                    )
+                }
+            }
+
+            val previous = groups[key]
+
+            groups[key] = Pair(
+                (previous?.first ?: 0) + count,
+                (previous?.second ?: 0) + 1
+            )
+        }
+
+        val report = StringBuilder()
+
+        var totalBags = 0
+        var totalSessions = 0
+
+        for ((key, value) in groups) {
+
+            totalBags += value.first
+            totalSessions += value.second
+
+            val title = when (type) {
+
+                "daily" -> {
+                    val parts = key.split("-")
+                    "${parts[0]}/${parts[1]}/${parts[2]}"
+                }
+
+                "weekly" -> {
+                    val parts = key.split("-")
+                    "سال ${parts[0]}، هفته ${parts[1]}"
+                }
+
+                else -> {
+                    val parts = key.split("-")
+                    "${parts[0]}/${parts[1].padStart(2, '0')}"
+                }
+            }
+
+            report.append("📅 $title\n")
+            report.append("تعداد کیسه‌ها: ${value.first}\n")
+            report.append("تعداد دفعات شمارش: ${value.second}\n")
+            report.append("------------------------\n")
+        }
+
+        report.append("\nمجموع کل کیسه‌ها: $totalBags")
+        report.append("\nمجموع دفعات شمارش: $totalSessions")
+
+        val title = when (type) {
+            "daily" -> "گزارش روزانه"
+            "weekly" -> "گزارش هفتگی"
+            else -> "گزارش ماهانه"
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(report.toString())
+            .setPositiveButton("بستن", null)
+            .show()
+    }
+
+    // ساخت فایل CSV قابل باز شدن در Excel
+    private fun exportExcel() {
+
+        val records = getRecords()
+
+        if (records.length() == 0) {
+
+            AlertDialog.Builder(this)
+                .setTitle("خروجی Excel")
+                .setMessage("هنوز هیچ سابقه‌ای برای خروجی گرفتن وجود ندارد.")
+                .setPositiveButton("باشه", null)
+                .show()
+
+            return
+        }
+
+        val formatter = createPersianFormatter()
+
+        val csv = StringBuilder()
+
+        csv.append("ردیف;تعداد کیسه‌ها;تاریخ شمسی;ساعت\n")
+
+        for (i in 0 until records.length()) {
+
+            val item = records.optJSONObject(i) ?: continue
+
+            val count = item.optInt("count", 0)
+            val time = item.optLong("time", 0L)
+
+            val calendar = PersianCalendar(
+                Locale("fa", "IR")
+            )
+
+            calendar.timeInMillis = time
+
+            val dateFormatter = IcuDateFormat(
+                "yyyy/MM/dd",
+                Locale("fa", "IR")
+            ).apply {
+                calendar = PersianCalendar(
+                    Locale("fa", "IR")
+                )
+            }
+
+            val timeFormatter = IcuDateFormat(
+                "HH:mm",
+                Locale("fa", "IR")
+            )
+
+            csv.append("${i + 1};")
+            csv.append("$count;")
+            csv.append("${dateFormatter.format(Date(time))};")
+            csv.append("${timeFormatter.format(Date(time))}\n")
+        }
+
+        pendingCsv = csv.toString()
+
+        exportLauncher.launch("sugar_count_history.csv")
     }
 
     private fun startCamera() {
@@ -342,6 +643,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 try {
+
                     val bitmap = ImageUtil.toBitmap(image)
                     val detections = detector.detect(bitmap)
 
@@ -354,12 +656,15 @@ class MainActivity : AppCompatActivity() {
                         )
 
                         if (!setupMode) {
+
                             totalCount += tracker.update(detections)
+
                             countText.text = "تعداد: $totalCount"
                         }
                     }
 
                 } catch (e: Exception) {
+
                     Log.e(
                         "SugarCounter",
                         "Detection error",
@@ -376,6 +681,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             try {
+
                 provider.unbindAll()
 
                 provider.bindToLifecycle(
@@ -386,6 +692,7 @@ class MainActivity : AppCompatActivity() {
                 )
 
             } catch (e: Exception) {
+
                 statusText.text =
                     "خطای دوربین: ${e.localizedMessage}"
             }
@@ -394,11 +701,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+
         super.onDestroy()
+
         executor.shutdown()
         detector.close()
     }
 }
-
-
-
