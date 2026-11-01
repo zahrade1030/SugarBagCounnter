@@ -11,6 +11,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.FrameLayout
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -18,6 +19,11 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
@@ -32,8 +38,13 @@ class MainActivity : AppCompatActivity() {
     private var running = true
     private var setupMode = true
     private var totalCount = 0
+    private var sessionSaved = false
 
     private val tracker = SimpleLineCounter()
+
+    private val historyPrefs by lazy {
+        getSharedPreferences("sugar_count_history", MODE_PRIVATE)
+    }
 
     private val permission =
         registerForActivityResult(
@@ -110,6 +121,7 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER
             setPadding(8, 12, 8, 4)
         }
+
         statusText = TextView(this).apply {
             text = "خطوط شمارش را تنظیم کنید"
             textSize = 15f
@@ -118,27 +130,50 @@ class MainActivity : AppCompatActivity() {
             setPadding(8, 6, 8, 10)
         }
 
-        val buttons = LinearLayout(this).apply {
+        val firstRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
 
-        fun addButton(label: String, action: () -> Unit) {
-            buttons.addView(
-                Button(this).apply {
-                    text = label
-                    setOnClickListener { action() }
-                }
+        val secondRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+
+        fun addButton(
+            row: LinearLayout,
+            label: String,
+            action: () -> Unit
+        ) {
+            val button = Button(this).apply {
+                text = label
+                setOnClickListener { action() }
+            }
+
+            row.addView(
+                button,
+                LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
             )
         }
 
-        addButton("تنظیم خطوط") {
+        addButton(firstRow, "تنظیم خطوط") {
             setupMode = true
             overlay.isSetup = true
             statusText.text = "خطوط را با لمس جابه‌جا کنید"
         }
 
-        addButton("شروع شمارش") {
+        addButton(firstRow, "شروع شمارش") {
+
+            saveCurrentSession()
+
+            totalCount = 0
+            countText.text = "تعداد: 0"
+            sessionSaved = false
+
             tracker.reset()
             tracker.setLines(
                 overlay.lineTop,
@@ -152,18 +187,30 @@ class MainActivity : AppCompatActivity() {
             statusText.text = "شمارش فعال است"
         }
 
-        addButton("توقف") {
+        addButton(firstRow, "توقف") {
             running = false
-            statusText.text = "شمارش متوقف شد"
+
+            val saved = saveCurrentSession()
+
+            statusText.text =
+                if (saved) "شمارش متوقف و نتیجه ثبت شد"
+                else "شمارش متوقف شد"
         }
 
-        addButton("ریست") {
+        addButton(secondRow, "ریست") {
+
+            saveCurrentSession()
+
             totalCount = 0
             tracker.reset()
-
             countText.text = "تعداد: 0"
             statusText.text = "شمارش از ابتدا آماده است"
         }
+
+        addButton(secondRow, "سوابق شمارش") {
+            showHistory()
+        }
+
         base.addView(header)
 
         base.addView(
@@ -177,9 +224,94 @@ class MainActivity : AppCompatActivity() {
 
         base.addView(countText)
         base.addView(statusText)
-        base.addView(buttons)
+        base.addView(firstRow)
+        base.addView(secondRow)
 
         setContentView(base)
+    }
+
+    private fun saveCurrentSession(): Boolean {
+
+        if (sessionSaved) return false
+
+        sessionSaved = true
+
+        if (totalCount <= 0) return false
+
+        val oldRecords = try {
+            JSONArray(
+                historyPrefs.getString("records", "[]") ?: "[]"
+            )
+        } catch (e: Exception) {
+            JSONArray()
+        }
+
+        val newRecord = JSONObject().apply {
+            put("count", totalCount)
+            put("time", System.currentTimeMillis())
+        }
+
+        val updatedRecords = JSONArray()
+        updatedRecords.put(newRecord)
+
+        for (i in 0 until minOf(oldRecords.length(), 499)) {
+            val item = oldRecords.optJSONObject(i)
+            if (item != null) {
+                updatedRecords.put(item)
+            }
+        }
+
+        historyPrefs.edit()
+            .putString("records", updatedRecords.toString())
+            .apply()
+
+        return true
+    }
+
+    private fun showHistory() {
+
+        val records = try {
+            JSONArray(
+                historyPrefs.getString("records", "[]") ?: "[]"
+            )
+        } catch (e: Exception) {
+            JSONArray()
+        }
+
+        if (records.length() == 0) {
+            AlertDialog.Builder(this)
+                .setTitle("سوابق شمارش")
+                .setMessage("هنوز هیچ سابقه‌ای ثبت نشده است.")
+                .setPositiveButton("بستن", null)
+                .show()
+            return
+        }
+
+        val formatter = SimpleDateFormat(
+            "yyyy/MM/dd   HH:mm",
+            Locale("fa", "IR")
+        )
+
+        val historyText = StringBuilder()
+
+        for (i in 0 until records.length()) {
+            val item = records.optJSONObject(i) ?: continue
+
+            val count = item.optInt("count", 0)
+            val time = item.optLong("time", 0L)
+
+            historyText.append("تعداد کیسه‌ها: $count\n")
+            historyText.append(
+                "تاریخ و ساعت: ${formatter.format(Date(time))}\n"
+            )
+            historyText.append("------------------------\n")
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("سوابق شمارش")
+            .setMessage(historyText.toString())
+            .setPositiveButton("بستن", null)
+            .show()
     }
 
     private fun startCamera() {
@@ -267,3 +399,6 @@ class MainActivity : AppCompatActivity() {
         detector.close()
     }
 }
+
+
+
