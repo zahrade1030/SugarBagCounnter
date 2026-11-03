@@ -1,75 +1,68 @@
 
+// --------------------------------------------------
+// صفحه درباره برنامه - طراحی Premium
+// --------------------------------------------------
+
 private fun showAbout() {
 
-    val navy = Color.rgb(28, 48, 68)
-    val gold = Color.rgb(177, 145, 83)
-    val dark = Color.rgb(48, 58, 68)
-    val muted = Color.rgb(112, 122, 132)
-    val white = Color.WHITE
-    val border = Color.rgb(232, 235, 238)
-
-    fun roundedBackground(
-        color: Int,
-        strokeColor: Int = color,
-        radius: Float = 16f
-    ): android.graphics.drawable.GradientDrawable {
-        return android.graphics.drawable.GradientDrawable().apply {
-            setColor(color)
-            cornerRadius = dp(radius.toInt()).toFloat()
-            setStroke(dp(1), strokeColor)
-        }
-    }
+    val white = Color.rgb(255, 255, 255)
+    val dark = Color.rgb(35, 48, 42)
+    val green = Color.rgb(35, 105, 76)
+    val muted = Color.rgb(112, 125, 117)
+    val border = Color.rgb(229, 235, 230)
 
     val content = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        gravity = Gravity.CENTER_HORIZONTAL
+        gravity = Gravity.CENTER
+        setPadding(dp(20), dp(24), dp(20), dp(24))
+        setBackground(
+            aboutBackground(white, 22, border)
+        )
         layoutDirection = View.LAYOUT_DIRECTION_RTL
-        setPadding(dp(18), dp(20), dp(18), dp(22))
-        setBackgroundColor(white)
     }
 
-    // عنوان اصلی
-    val brand = TextView(this).apply {
-        text = "CRYSTAL VISION"
-        textSize = 12f
-        letterSpacing = 0.18f
-        setTextColor(gold)
-        gravity = Gravity.CENTER
-        typeface = android.graphics.Typeface.create(
-            "sans-serif-medium",
-            android.graphics.Typeface.NORMAL
+    // نوار تزئینی بالای صفحه
+    val accent = View(this).apply {
+        setBackground(
+            aboutBackground(green, 10, green)
         )
     }
 
     content.addView(
-        brand,
-        LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(25)
-        )
+        accent,
+        LinearLayout.LayoutParams(dp(48), dp(5)).apply {
+            gravity = Gravity.CENTER
+            bottomMargin = dp(18)
+        }
     )
 
+    // عنوان اصلی
     val title = TextView(this).apply {
-        text = "سامانه هوشمند\nشمارش کیسه‌های قند"
-        textSize = 23f
-        setTextColor(navy)
+        text = "درباره برنامه"
+        textSize = 25f
+        setTextColor(dark)
         gravity = Gravity.CENTER
-        setLineSpacing(dp(4).toFloat(), 1f)
         typeface = android.graphics.Typeface.create(
             "sans-serif",
             android.graphics.Typeface.BOLD
         )
-        setPadding(0, dp(5), 0, dp(5))
     }
 
-    content.addView(title)
+    content.addView(
+        title,
+        LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+    )
 
+    // توضیح کوتاه
     val subtitle = TextView(this).apply {
-        text = "راهکاری هوشمند برای دقت و سرعت در صنعت"
+        text = "معرفی سامانه و عوامل توسعه"
         textSize = 13f
         setTextColor(muted)
         gravity = Gravity.CENTER
-        setPadding(0, dp(5), 0, dp(20))
+        setPadding(0, dp(7), 0, dp(22))
         typeface = android.graphics.Typeface.create(
             "sans-serif",
             android.graphics.Typeface.NORMAL
@@ -82,145 +75,76 @@ private fun showAbout() {
     val logos = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER
-        layoutDirection = View.LAYOUT_DIRECTION_RTL
-    }
-
-    fun createLogoCard(
-        imageResource: Int,
-        caption: String
-    ): LinearLayout {
-
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(8), dp(10), dp(8), dp(10))
-            background = roundedBackground(white, border)
-        }
-
-        val image = ImageView(this).apply {
-            setImageResource(imageResource)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            contentDescription = caption
-            setPadding(dp(5), dp(4), dp(5), dp(4))
-        }
-
-        card.addView(
-            image,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(85)
-            )
-        )
-
-        val label = TextView(this).apply {
-            text = caption
-            textSize = 12f
-            setTextColor(navy)
-            gravity = Gravity.CENTER
-            typeface = android.graphics.Typeface.create(
-                "sans-serif-medium",
-                android.graphics.Typeface.NORMAL
-            )
-            setPadding(0, dp(8), 0, 0)
-        }
-
-        card.addView(label)
-
-        return card
     }
 
     logos.addView(
-        createLogoCard(
+        createAboutLogoCard(
             R.drawable.university_logo,
-            "دانشگاه آزاد اسلامی"
+            "دانشگاه آزاد اسلامی",
+            "واحد همدان"
         ),
-        LinearLayout.LayoutParams(
-            0,
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            1f
-        ).apply {
+        LinearLayout.LayoutParams(0, dp(155), 1f).apply {
             marginEnd = dp(6)
         }
     )
 
     logos.addView(
-        createLogoCard(
+        createAboutLogoCard(
             R.drawable.factory_logo,
-            "کارخانه قند حکمتان"
+            "هسته فناور",
+            "کریستال‌بین"
         ),
-        LinearLayout.LayoutParams(
-            0,
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            1f
-        ).apply {
+        LinearLayout.LayoutParams(0, dp(155), 1f).apply {
             marginStart = dp(6)
         }
     )
 
-    content.addView(
-        logos,
-        LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
+    content.addView(logos)
+
+    // عنوان سامانه
+    addAboutText(
+        content,
+        "سامانه هوشمند شمارش کیسه‌های قند",
+        20f,
+        true
     )
 
-    // معرفی مجموعه
-    fun addSectionTitle(value: String) {
-        val text = TextView(this).apply {
-            this.text = value
-            textSize = 15f
-            setTextColor(navy)
-            gravity = Gravity.RIGHT or Gravity.CENTER_VERTICAL
-            typeface = android.graphics.Typeface.create(
-                "sans-serif",
-                android.graphics.Typeface.BOLD
-            )
-            setPadding(0, dp(20), 0, dp(9))
-        }
-        content.addView(text)
-    }
-
-    fun addInfoCard(value: String) {
-        val card = TextView(this).apply {
-            text = value
-            textSize = 14f
-            setTextColor(dark)
-            gravity = Gravity.RIGHT or Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(13), dp(14), dp(13))
-            background = roundedBackground(
-                Color.rgb(248, 249, 250),
-                border
-            )
-            typeface = android.graphics.Typeface.create(
-                "sans-serif-medium",
-                android.graphics.Typeface.NORMAL
-            )
-        }
-
-        content.addView(
-            card,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
+    // توضیح سامانه
+    val description = TextView(this).apply {
+        text = "طراحی و توسعه سامانه هوشمند مبتنی بر بینایی ماشین"
+        textSize = 12f
+        setTextColor(muted)
+        gravity = Gravity.CENTER
+        setPadding(dp(4), dp(4), dp(4), dp(20))
+        typeface = android.graphics.Typeface.create(
+            "sans-serif",
+            android.graphics.Typeface.NORMAL
         )
     }
 
-    addSectionTitle("معرفی پروژه")
+    content.addView(description)
 
-    addInfoCard("دانشگاه آزاد اسلامی واحد همدان")
+    // جداکننده
+    val divider = View(this).apply {
+        setBackgroundColor(border)
+    }
 
-    val organization = TextView(this).apply {
-        text = "هسته فناور کریستال‌بین"
-        textSize = 14f
-        setTextColor(navy)
-        gravity = Gravity.RIGHT or Gravity.CENTER_VERTICAL
-        setPadding(dp(14), dp(13), dp(14), dp(13))
-        background = roundedBackground(
-            Color.rgb(250, 247, 240),
-            Color.rgb(235, 225, 205)
-        )
+    content.addView(
+        divider,
+        LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(1)
+        ).apply {
+            bottomMargin = dp(18)
+        }
+    )
+
+    // عنوان اعضای پروژه
+    val membersTitle = TextView(this).apply {
+        text = "تیم توسعه پروژه"
+        textSize = 17f
+        setTextColor(green)
+        gravity = Gravity.CENTER
         typeface = android.graphics.Typeface.create(
             "sans-serif",
             android.graphics.Typeface.BOLD
@@ -228,143 +152,303 @@ private fun showAbout() {
     }
 
     content.addView(
-        organization,
+        membersTitle,
         LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply {
-            topMargin = dp(8)
+            bottomMargin = dp(13)
         }
     )
 
-    // اعضای تیم
-    addSectionTitle("تیم توسعه پروژه")
+    // اعضای پروژه
+    val members = listOf(
+        "محمدمهدی شیرمحمدی" to "استاد راهنما",
+        "زهرا ده‌ده‌سی" to "عضو تیم توسعه",
+        "علی قاسمی" to "عضو تیم توسعه",
+        "سینا بالائی" to "عضو تیم توسعه"
+    )
 
-    fun addMember(
-        number: String,
-        name: String,
-        role: String? = null
-    ) {
-
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-            background = roundedBackground(white, border)
-        }
-
-        val numberView = TextView(this).apply {
-            text = number
-            textSize = 13f
-            setTextColor(gold)
-            gravity = Gravity.CENTER
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            background = roundedBackground(
-                Color.rgb(250, 247, 240),
-                Color.rgb(235, 225, 205),
-                10f
-            )
-        }
-
-        row.addView(
-            numberView,
-            LinearLayout.LayoutParams(dp(34), dp(34))
-        )
-
-        val nameColumn = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), 0, 0, 0)
-        }
-
-        val nameView = TextView(this).apply {
-            text = name
-            textSize = 15f
-            setTextColor(navy)
-            gravity = Gravity.RIGHT
-            typeface = android.graphics.Typeface.create(
-                "sans-serif-medium",
-                android.graphics.Typeface.NORMAL
-            )
-        }
-
-        nameColumn.addView(nameView)
-
-        if (role != null) {
-            val roleView = TextView(this).apply {
-                text = role
-                textSize = 12f
-                setTextColor(muted)
-                gravity = Gravity.RIGHT
-                setPadding(0, dp(4), 0, 0)
-            }
-            nameColumn.addView(roleView)
-        }
-
-        row.addView(
-            nameColumn,
-            LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-        )
+    members.forEach { member ->
 
         content.addView(
-            row,
+            createAboutMemberCard(
+                member.first,
+                member.second
+            ),
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+                dp(58)
             ).apply {
-                bottomMargin = dp(7)
+                bottomMargin = dp(8)
             }
         )
     }
 
-    addMember("۰۱", "محمدمهدی شیرمحمدی", "استاد راهنما")
-    addMember("۰۲", "زهرا ده‌ده‌سی")
-    addMember("۰۳", "علی قاسمی")
-    addMember("۰۴", "سینا بالائی")
-
-    // پایانی صفحه
+    // متن پایانی
     val footer = TextView(this).apply {
-        text = "CRYSTAL VISION  •  SMART INDUSTRIAL SOLUTION"
-        textSize = 10f
-        letterSpacing = 0.05f
-        setTextColor(muted)
+        text = "CRYSTAL VISION"
+        textSize = 11f
+        letterSpacing = 2f
+        setTextColor(green)
         gravity = Gravity.CENTER
-        setPadding(0, dp(20), 0, dp(5))
+        setPadding(0, dp(17), 0, dp(3))
+        typeface = android.graphics.Typeface.create(
+            "sans-serif",
+            android.graphics.Typeface.BOLD
+        )
     }
 
     content.addView(footer)
 
+    // اسکرول صفحه
     val scroll = ScrollView(this).apply {
         isFillViewport = true
         setBackgroundColor(white)
         addView(content)
     }
 
+    // ساخت پنجره اختصاصی
     val dialog = AlertDialog.Builder(this)
         .setView(scroll)
         .setPositiveButton("بستن", null)
         .create()
 
-    dialog.show()
+    dialog.setOnShowListener {
 
-    dialog.window?.apply {
-        setBackgroundDrawable(
+        dialog.window?.setBackgroundDrawable(
             android.graphics.drawable.ColorDrawable(white)
         )
-        setLayout(
-            (resources.displayMetrics.widthPixels * 0.92f).toInt(),
-            -2
+
+        dialog.window?.setLayout(
+            resources.displayMetrics.widthPixels - dp(32),
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+
+        val closeButton = dialog.getButton(
+            AlertDialog.BUTTON_POSITIVE
+        )
+
+        closeButton.setTextColor(green)
+        closeButton.textSize = 14f
+        closeButton.typeface = android.graphics.Typeface.DEFAULT_BOLD
+    }
+
+    dialog.show()
+
+    dialog.window?.setBackgroundDrawable(
+        android.graphics.drawable.ColorDrawable(white)
+    )
+
+    dialog.window?.setLayout(
+        resources.displayMetrics.widthPixels - dp(32),
+        LinearLayout.LayoutParams.WRAP_CONTENT
+    )
+}
+
+// --------------------------------------------------
+// کارت لوگوها
+// --------------------------------------------------
+
+private fun createAboutLogoCard(
+    imageResource: Int,
+    heading: String,
+    subheading: String
+): LinearLayout {
+
+    val card = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER
+        setPadding(dp(8), dp(10), dp(8), dp(8))
+        setBackground(
+            aboutBackground(
+                Color.WHITE,
+                16,
+                Color.rgb(229, 235, 230)
+            )
         )
     }
 
-    dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
-        setTextColor(navy)
-        textSize = 14f
+    val image = ImageView(this).apply {
+        setImageResource(imageResource)
+        scaleType = ImageView.ScaleType.FIT_CENTER
+        setBackgroundColor(Color.WHITE)
+        contentDescription = heading
+    }
+
+    card.addView(
+        image,
+        LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(85)
+        )
+    )
+
+    val mainText = TextView(this).apply {
+        text = heading
+        textSize = 12f
+        setTextColor(Color.rgb(40, 55, 46))
+        gravity = Gravity.CENTER
         typeface = android.graphics.Typeface.DEFAULT_BOLD
     }
+
+    card.addView(mainText)
+
+    val secondaryText = TextView(this).apply {
+        text = subheading
+        textSize = 11f
+        setTextColor(Color.rgb(100, 115, 105))
+        gravity = Gravity.CENTER
+        setPadding(0, dp(3), 0, 0)
+    }
+
+    card.addView(secondaryText)
+
+    return card
+}
+
+// --------------------------------------------------
+// کارت اعضای پروژه
+// --------------------------------------------------
+
+private fun createAboutMemberCard(
+    name: String,
+    role: String
+): LinearLayout {
+
+    val card = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(13), dp(6), dp(13), dp(6))
+        setBackground(
+            aboutBackground(
+                Color.rgb(248, 250, 248),
+                12,
+                Color.rgb(235, 239, 236)
+            )
+        )
+        layoutDirection = View.LAYOUT_DIRECTION_RTL
+    }
+
+    // نشان کوچک سبز
+    val indicator = View(this).apply {
+        setBackground(
+            aboutBackground(
+                Color.rgb(49, 132, 91),
+                50,
+                Color.rgb(49, 132, 91)
+            )
+        )
+    }
+
+    card.addView(
+        indicator,
+        LinearLayout.LayoutParams(dp(7), dp(7)).apply {
+            marginEnd = dp(10)
+        }
+    )
+
+    // نام عضو
+    val nameText = TextView(this).apply {
+        text = name
+        textSize = 14f
+        setTextColor(Color.rgb(38, 50, 43))
+        gravity = Gravity.CENTER_VERTICAL
+        typeface = android.graphics.Typeface.create(
+            "sans-serif",
+            android.graphics.Typeface.BOLD
+        )
+    }
+
+    card.addView(
+        nameText,
+        LinearLayout.LayoutParams(
+            0,
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            1f
+        )
+    )
+
+    // سمت عضو
+    val roleText = TextView(this).apply {
+        text = role
+        textSize = 10f
+        setTextColor(Color.rgb(49, 119, 83))
+        gravity = Gravity.CENTER
+        setPadding(dp(8), dp(6), dp(8), dp(6))
+        setBackground(
+            aboutBackground(
+                Color.rgb(231, 242, 234),
+                8,
+                Color.rgb(231, 242, 234)
+            )
+        )
+    }
+
+    card.addView(roleText)
+
+    return card
+}
+
+// --------------------------------------------------
+// پس زمینه کارت ها
+// --------------------------------------------------
+
+private fun aboutBackground(
+    color: Int,
+    radius: Int,
+    strokeColor: Int
+): android.graphics.drawable.GradientDrawable {
+
+    return android.graphics.drawable.GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = dp(radius).toFloat()
+        setStroke(dp(1), strokeColor)
+    }
+}
+
+// --------------------------------------------------
+// متن های صفحه درباره برنامه
+// --------------------------------------------------
+
+private fun addAboutText(
+    parent: LinearLayout,
+    value: String,
+    size: Float,
+    bold: Boolean
+) {
+
+    val text = TextView(this).apply {
+
+        this.text = value
+        textSize = size
+
+        setTextColor(
+            if (bold) {
+                Color.rgb(35, 105, 76)
+            } else {
+                Color.rgb(45, 55, 48)
+            }
+        )
+
+        gravity = Gravity.CENTER
+
+        setPadding(
+            dp(4),
+            dp(12),
+            dp(4),
+            dp(5)
+        )
+
+        typeface = android.graphics.Typeface.create(
+            "sans-serif",
+            if (bold) {
+                android.graphics.Typeface.BOLD
+            } else {
+                android.graphics.Typeface.NORMAL
+            }
+        )
+    }
+
+    parent.addView(text)
 }
