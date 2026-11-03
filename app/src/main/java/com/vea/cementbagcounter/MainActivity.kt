@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.widget.Button
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
@@ -41,6 +43,43 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 class MainActivity : AppCompatActivity() {
+    private val industrialBlack = Color.rgb(23, 25, 28)
+private val industrialGold = Color.rgb(181, 138, 55)
+private val industrialLightGold = Color.rgb(229, 189, 105)
+private val industrialButton = Color.rgb(41, 43, 47)
+private val industrialBorder = Color.rgb(85, 87, 91)
+
+private fun createIndustrialButton(
+    title: String,
+    primary: Boolean = false
+): Button {
+    return Button(this).apply {
+        text = title
+        textSize = 15f
+        isAllCaps = false
+        typeface = Typeface.DEFAULT_BOLD
+
+        setTextColor(
+            if (primary) industrialBlack else industrialLightGold
+        )
+
+        background = GradientDrawable().apply {
+            setColor(
+                if (primary) industrialGold else industrialButton
+            )
+            cornerRadius = dp(14).toFloat()
+            setStroke(
+                dp(1),
+                if (primary) industrialGold else industrialBorder
+            )
+        }
+
+        elevation = dp(3).toFloat()
+        minHeight = dp(52)
+        minimumHeight = dp(52)
+    }
+}
+    
 
     private lateinit var preview: PreviewView
     private lateinit var overlay: DetectionOverlay
