@@ -735,8 +735,8 @@ class MainActivity : AppCompatActivity() {
         logos.addView(
             createAboutLogoCard(
                 R.drawable.factory_logo,
-                "هسته فناور",
-                "کریستال‌بین"
+                "شرکت قند هکمتان",
+                "همدان"
             ),
             LinearLayout.LayoutParams(0, dp(155), 1f).apply {
                 marginStart = dp(6)
