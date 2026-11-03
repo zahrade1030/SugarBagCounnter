@@ -776,14 +776,26 @@ class MainActivity : AppCompatActivity() {
             }
         )
 
-        val membersTitle = TextView(this).apply {
-            text = "تیم توسعه پروژه"
-            textSize = 17f
+        val teamTitle = TextView(this).apply {
+            text = "هسته فناور کریستال‌بین"
+            textSize = 19f
             setTextColor(green)
             gravity = Gravity.CENTER
             typeface = Typeface.DEFAULT_BOLD
+            setPadding(0, dp(8), 0, dp(5))
         }
-
+        
+        content.addView(teamTitle)
+        
+        val membersTitle = TextView(this).apply {
+            text = "تیم توسعه پروژه"
+            textSize = 13f
+            setTextColor(Color.rgb(112, 125, 117))
+            gravity = Gravity.CENTER
+            setPadding(0, dp(2), 0, dp(13))
+            typeface = Typeface.DEFAULT
+        }
+        
         content.addView(membersTitle)
 
         val members = listOf(
