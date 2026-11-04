@@ -1,19 +1,27 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera.any" android:required="true" />
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="true" />
+
     <application
         android:allowBackup="false"
         android:label="Cement Bag Counter"
+        android:icon="@drawable/sugarbag_icon"
+        android:roundIcon="@drawable/sugarbag_icon"
         android:theme="@style/AppTheme"
         android:supportsRtl="true">
+
         <activity
             android:name=".MainActivity"
             android:screenOrientation="portrait"
             android:exported="true">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
         </activity>
     </application>
 </manifest>
