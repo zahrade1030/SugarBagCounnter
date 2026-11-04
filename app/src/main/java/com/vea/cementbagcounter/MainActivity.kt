@@ -5,10 +5,8 @@ import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
-import android.widget.Button
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -145,170 +143,184 @@ private fun createIndustrialButton(
     // رابط اصلی برنامه
     // --------------------------------------------------
 
-    private fun buildUi() {
+    
+private fun buildUi() {
 
-        val base = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(18, 28, 24))
-        }
-
-        val header = TextView(this).apply {
-            text = "شمارشگر هوشمند کیسه‌های قند"
-            textSize = 21f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setPadding(dp(8), dp(16), dp(8), dp(16))
-            typeface = Typeface.DEFAULT_BOLD
-        }
-
-        preview = PreviewView(this).apply {
-            scaleType = PreviewView.ScaleType.FILL_CENTER
-        }
-
-        overlay = DetectionOverlay(this)
-
-        val cameraFrame = FrameLayout(this)
-
-        cameraFrame.addView(
-            preview,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-        )
-
-        cameraFrame.addView(
-            overlay,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-        )
-
-        countText = TextView(this).apply {
-            text = "تعداد: 0"
-            textSize = 30f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setPadding(dp(8), dp(14), dp(8), dp(4))
-            typeface = Typeface.DEFAULT_BOLD
-        }
-
-        statusText = TextView(this).apply {
-            text = "خطوط شمارش را تنظیم کنید"
-            textSize = 14f
-            setTextColor(Color.LTGRAY)
-            gravity = Gravity.CENTER
-            setPadding(dp(8), dp(5), dp(8), dp(12))
-        }
-
-        val controls = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(8), dp(4), dp(8), dp(4))
-        }
-
-        val firstRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-
-        val secondRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-
-        fun addActionButton(
-            parent: LinearLayout,
-            label: String,
-            action: () -> Unit
-        ) {
-            val button = Button(this).apply {
-                text = label
-                textSize = 12f
-                setOnClickListener { action() }
-            }
-
-            parent.addView(
-                button,
-                LinearLayout.LayoutParams(
-                    0,
-                    dp(48),
-                    1f
-                ).apply {
-                    setMargins(dp(3), dp(3), dp(3), dp(3))
-                }
-            )
-        }
-
-        addActionButton(firstRow, "تنظیم خطوط") {
-            setupMode = true
-            overlay.isSetup = true
-            statusText.text = "خطوط را با لمس جابه‌جا کنید"
-        }
-
-        addActionButton(firstRow, "شروع شمارش") {
-            tracker.reset()
-            tracker.setLines(
-                overlay.lineTop,
-                overlay.lineBottom
-            )
-
-            setupMode = false
-            overlay.isSetup = false
-            running = true
-
-            statusText.text = "شمارش فعال است"
-        }
-
-        addActionButton(firstRow, "توقف") {
-            stopCounting()
-        }
-
-        addActionButton(secondRow, "ریست") {
-            totalCount = 0
-            tracker.reset()
-            countText.text = "تعداد: 0"
-            statusText.text = "شمارش از ابتدا آماده است"
-        }
-
-        addActionButton(secondRow, "تاریخچه") {
-            showHistory()
-        }
-
-        addActionButton(secondRow, "آمار") {
-            showStatistics()
-        }
-
-        addActionButton(secondRow, "Excel") {
-            exportExcel()
-        }
-
-        val aboutButton = Button(this).apply {
-            text = "درباره برنامه"
-            setOnClickListener { showAbout() }
-        }
-
-        controls.addView(firstRow)
-        controls.addView(secondRow)
-        controls.addView(aboutButton)
-
-        base.addView(header)
-
-        base.addView(
-            cameraFrame,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            )
-        )
-
-        base.addView(countText)
-        base.addView(statusText)
-        base.addView(controls)
-
-        setContentView(base)
+    val base = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setBackgroundColor(industrialBlack)
     }
+
+    val header = TextView(this).apply {
+        text = "شمارشگر هوشمند کیسه‌های قند"
+        textSize = 21f
+        setTextColor(industrialLightGold)
+        gravity = Gravity.CENTER
+        setPadding(dp(8), dp(16), dp(8), dp(16))
+        typeface = Typeface.DEFAULT_BOLD
+    }
+
+    preview = PreviewView(this).apply {
+        scaleType = PreviewView.ScaleType.FILL_CENTER
+    }
+
+    overlay = DetectionOverlay(this)
+
+    val cameraFrame = FrameLayout(this)
+
+    cameraFrame.addView(
+        preview,
+        FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+    )
+
+    cameraFrame.addView(
+        overlay,
+        FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+    )
+
+    countText = TextView(this).apply {
+        text = "تعداد: 0"
+        textSize = 30f
+        setTextColor(industrialLightGold)
+        gravity = Gravity.CENTER
+        setPadding(dp(8), dp(14), dp(8), dp(4))
+        typeface = Typeface.DEFAULT_BOLD
+    }
+
+    statusText = TextView(this).apply {
+        text = "خطوط شمارش را تنظیم کنید"
+        textSize = 14f
+        setTextColor(Color.LTGRAY)
+        gravity = Gravity.CENTER
+        setPadding(dp(8), dp(5), dp(8), dp(12))
+    }
+
+    val controls = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(8), dp(4), dp(8), dp(4))
+    }
+
+    val firstRow = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER
+    }
+
+    val secondRow = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER
+    }
+
+    fun addActionButton(
+        parent: LinearLayout,
+        label: String,
+        action: () -> Unit
+    ) {
+        val button = createIndustrialButton(
+            title = label,
+            primary = label == "شروع شمارش"
+        ).apply {
+            setOnClickListener { action() }
+        }
+
+        parent.addView(
+            button,
+            LinearLayout.LayoutParams(
+                0,
+                dp(52),
+                1f
+            ).apply {
+                setMargins(dp(3), dp(3), dp(3), dp(3))
+            }
+        )
+    }
+
+    addActionButton(firstRow, "تنظیم خطوط") {
+        setupMode = true
+        overlay.isSetup = true
+        statusText.text = "خطوط را با لمس جابه‌جا کنید"
+    }
+
+    addActionButton(firstRow, "شروع شمارش") {
+        tracker.reset()
+        tracker.setLines(
+            overlay.lineTop,
+            overlay.lineBottom
+        )
+
+        setupMode = false
+        overlay.isSetup = false
+        running = true
+
+        statusText.text = "شمارش فعال است"
+    }
+
+    addActionButton(firstRow, "توقف") {
+        stopCounting()
+    }
+
+    addActionButton(secondRow, "ریست") {
+        totalCount = 0
+        tracker.reset()
+        countText.text = "تعداد: 0"
+        statusText.text = "شمارش از ابتدا آماده است"
+    }
+
+    addActionButton(secondRow, "تاریخچه") {
+        showHistory()
+    }
+
+    addActionButton(secondRow, "آمار") {
+        showStatistics()
+    }
+
+    addActionButton(secondRow, "Excel") {
+        exportExcel()
+    }
+
+    val aboutButton = createIndustrialButton("درباره برنامه").apply {
+        setOnClickListener { showAbout() }
+    }
+
+    controls.addView(firstRow)
+    controls.addView(secondRow)
+
+    controls.addView(
+        aboutButton,
+        LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(52)
+        ).apply {
+            setMargins(dp(3), dp(3), dp(3), dp(3))
+        }
+    )
+
+    base.addView(header)
+
+    base.addView(
+        cameraFrame,
+        LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        )
+    )
+
+    base.addView(countText)
+    base.addView(statusText)
+    base.addView(controls)
+
+    setContentView(base)
+}
+
+
+    
+    
 
     // --------------------------------------------------
     // دوربین و تشخیص
@@ -709,11 +721,11 @@ private fun createIndustrialButton(
 
     private fun showAbout() {
 
-        val white = Color.WHITE
-        val dark = Color.rgb(35, 48, 42)
-        val green = Color.rgb(35, 105, 76)
-        val muted = Color.rgb(112, 125, 117)
-        val border = Color.rgb(229, 235, 230)
+        val white = industrialBlack
+        val dark = industrialLightGold
+        val green = industrialGold
+        val muted = Color.rgb(190, 190, 190)
+        val border = industrialBorder
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -829,7 +841,7 @@ private fun createIndustrialButton(
         val membersTitle = TextView(this).apply {
             text = "تیم توسعه پروژه"
             textSize = 13f
-            setTextColor(Color.rgb(112, 125, 117))
+            setTextColor(muted)
             gravity = Gravity.CENTER
             setPadding(0, dp(2), 0, dp(13))
             typeface = Typeface.DEFAULT
@@ -920,9 +932,11 @@ private fun createIndustrialButton(
             setPadding(dp(8), dp(10), dp(8), dp(8))
             setBackground(
                 aboutBackground(
-                    Color.WHITE,
+                    industrialButton,
                     16,
-                    Color.rgb(229, 235, 230)
+                    industrialBorder
+                    
+                    
                 )
             )
         }
@@ -945,7 +959,7 @@ private fun createIndustrialButton(
         val mainText = TextView(this).apply {
             text = heading
             textSize = 12f
-            setTextColor(Color.rgb(40, 55, 46))
+            setTextColor(industrialLightGold)
             gravity = Gravity.CENTER
             typeface = Typeface.DEFAULT_BOLD
         }
@@ -955,7 +969,7 @@ private fun createIndustrialButton(
         val secondaryText = TextView(this).apply {
             text = subheading
             textSize = 11f
-            setTextColor(Color.rgb(100, 115, 105))
+            setTextColor(Color.rgb(190, 190, 190))
             gravity = Gravity.CENTER
             setPadding(0, dp(3), 0, 0)
         }
@@ -976,9 +990,11 @@ private fun createIndustrialButton(
             setPadding(dp(13), dp(6), dp(13), dp(6))
             setBackground(
                 aboutBackground(
-                    Color.rgb(248, 250, 248),
+                    industrialButton,
                     12,
-                    Color.rgb(235, 239, 236)
+                    industrialBorder
+                    
+                    
                 )
             )
             layoutDirection = View.LAYOUT_DIRECTION_RTL
@@ -987,9 +1003,11 @@ private fun createIndustrialButton(
         val indicator = View(this).apply {
             setBackground(
                 aboutBackground(
-                    Color.rgb(49, 132, 91),
+                    industrialGold,
                     50,
-                    Color.rgb(49, 132, 91)
+                    industrialGold
+                    
+                    
                 )
             )
         }
@@ -1004,7 +1022,7 @@ private fun createIndustrialButton(
         val nameText = TextView(this).apply {
             text = name
             textSize = 14f
-            setTextColor(Color.rgb(38, 50, 43))
+            setTextColor(industrialLightGold)
             gravity = Gravity.CENTER_VERTICAL
             typeface = Typeface.DEFAULT_BOLD
         }
@@ -1021,15 +1039,15 @@ private fun createIndustrialButton(
         val roleText = TextView(this).apply {
             text = role
             textSize = 10f
-            setTextColor(Color.rgb(49, 119, 83))
+            setTextColor(industrialGold)
             gravity = Gravity.CENTER
             setPadding(dp(8), dp(6), dp(8), dp(6))
             setBackground(
-                aboutBackground(
-                    Color.rgb(231, 242, 234),
-                    8,
-                    Color.rgb(231, 242, 234)
-                )
+               aboutBackground(
+                   industrialBlack,
+                   8,
+                   industrialGold
+               ) 
             )
         }
 
@@ -1064,9 +1082,9 @@ private fun createIndustrialButton(
 
             setTextColor(
                 if (bold) {
-                    Color.rgb(35, 105, 76)
+                    industrialGold
                 } else {
-                    Color.rgb(45, 55, 48)
+                    Color.rgb(210, 210, 210)
                 }
             )
 
