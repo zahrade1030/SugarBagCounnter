@@ -1,3 +1,4 @@
+
 package com.vea.cementbagcounter
 
 import android.content.Context
@@ -19,6 +20,9 @@ class DetectionOverlay(context: Context) : View(context) {
     private var imageH = 640f
 
     private var detections: List<Detection> = emptyList()
+    private var trackedDetections: List<TrackedDetection> = emptyList()
+    private var showingTracked = false
+
     private var dragging = 0
 
     private val boxPaint = Paint(3).apply {
@@ -35,12 +39,32 @@ class DetectionOverlay(context: Context) : View(context) {
     private val textPaint = Paint(3).apply {
         color = Color.WHITE
         textSize = 30f
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+    }
+
+    private val labelBackgroundPaint = Paint(3).apply {
+        color = Color.rgb(20, 20, 20)
+        style = Paint.Style.FILL
     }
 
     fun setDetections(list: List<Detection>, w: Int, h: Int) {
         detections = list
         imageW = w.toFloat()
         imageH = h.toFloat()
+        trackedDetections = emptyList()
+        showingTracked = false
+        invalidate()
+    }
+
+    fun setTrackedDetections(
+        list: List<TrackedDetection>,
+        w: Int,
+        h: Int
+    ) {
+        trackedDetections = list
+        imageW = w.toFloat()
+        imageH = h.toFloat()
+        showingTracked = true
         invalidate()
     }
 
@@ -63,32 +87,47 @@ class DetectionOverlay(context: Context) : View(context) {
         val dx = offsetX(scale)
         val dy = offsetY(scale)
 
-        detections.forEach {
-            canvas.drawRect(
-                it.left * scale + dx,
-                it.top * scale + dy,
-                it.right * scale + dx,
-                it.bottom * scale + dy,
-                boxPaint
-            )
-
-            canvas.drawText(
-                "${(it.confidence * 100).toInt()}%",
-                it.left * scale + dx,
-                (it.top * scale + dy - 8).coerceAtLeast(28f),
-                textPaint
-            )
+        if (showingTracked) {
+            trackedDetections.forEach { tracked ->
+                drawDetection(
+                    canvas,
+                    tracked.detection,
+                    scale,
+                    dx,
+                    dy,
+                    tracked.id
+                )
+            }
+        } else {
+            detections.forEach { detection ->
+                drawDetection(
+                    canvas,
+                    detection,
+                    scale,
+                    dx,
+                    dy,
+                    null
+                )
+            }
         }
 
         val topY = lineTop * scale + dy
         val bottomY = lineBottom * scale + dy
 
         canvas.drawLine(
-            0f, topY, width.toFloat(), topY, linePaint
+            0f,
+            topY,
+            width.toFloat(),
+            topY,
+            linePaint
         )
 
         canvas.drawLine(
-            0f, bottomY, width.toFloat(), bottomY, linePaint
+            0f,
+            bottomY,
+            width.toFloat(),
+            bottomY,
+            linePaint
         )
 
         canvas.drawText(
@@ -99,6 +138,55 @@ class DetectionOverlay(context: Context) : View(context) {
             textPaint
         )
     }
+
+    private fun drawDetection(
+        canvas: Canvas,
+        detection: Detection,
+        scale: Float,
+        dx: Float,
+        dy: Float,
+        trackId: Int?
+    ) {
+        val left = detection.left * scale + dx
+        val top = detection.top * scale + dy
+        val right = detection.right * scale + dx
+        val bottom = detection.bottom * scale + dy
+
+        canvas.drawRect(
+            left,
+            top,
+            right,
+            bottom,
+            boxPaint
+        )
+
+        val label = if (trackId != null) {
+            "ID $trackId | ${(detection.confidence * 100).toInt()}%"
+        } else {
+            "${(detection.confidence * 100).toInt()}%"
+        }
+
+        val labelWidth = textPaint.measureText(label) + 16f
+        val labelTop = (top - 42f).coerceAtLeast(0f)
+
+        canvas.drawRoundRect(
+            left,
+            labelTop,
+            left + labelWidth,
+            labelTop + 36f,
+            6f,
+            6f,
+            labelBackgroundPaint
+        )
+
+        canvas.drawText(
+            label,
+            left + 8f,
+            labelTop + 27f,
+            textPaint
+        )
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!isSetup) return false
 
