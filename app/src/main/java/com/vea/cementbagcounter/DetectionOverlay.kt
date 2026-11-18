@@ -2,10 +2,11 @@
 package com.vea.cementbagcounter
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
 import android.view.MotionEvent
 import android.view.View
@@ -28,20 +29,30 @@ class DetectionOverlay(context: Context) : View(context) {
     private var showingTracked = false
     private var dragging = 0
 
+    // بارگذاری تصویر راهنما از پوشه assets
+    private val guideBitmap by lazy {
+        runCatching {
+            context.assets.open("guide_overlay.jpg").use { stream ->
+                BitmapFactory.decodeStream(stream)
+            }
+        }.getOrNull()
+    }
+
+    private val guideBitmapPaint =
+        Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 
     // تنظیمات تصویر راهنما
     var guideOverlayEnabled = true
-    set(value) {
-        field = value
-        invalidate()
-    }
-    
-    var guideOverlayAlpha = 48
-    set(value) {
-        field = value.coerceIn(0, 255)
-        invalidate()
-    }
+        set(value) {
+            field = value
+            invalidate()
+        }
 
+    var guideOverlayAlpha = 48
+        set(value) {
+            field = value.coerceIn(0, 255)
+            invalidate()
+        }
 
     // کادر تشخیص
     private val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -68,29 +79,6 @@ class DetectionOverlay(context: Context) : View(context) {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(20, 20, 20)
             style = Paint.Style.FILL
-        }
-
-    // رنگ خطوط راهنما
-    private val guidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 2.5f
-        strokeCap = Paint.Cap.ROUND
-        strokeJoin = Paint.Join.ROUND
-    }
-
-    // رنگ محدوده راهنما
-    private val guideFillPaint =
-        Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-        }
-
-    // متن راهنما
-    private val guideTextPaint =
-        Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            textSize = 25f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            textAlign = Paint.Align.CENTER
         }
 
     fun setDetections(
@@ -209,177 +197,65 @@ class DetectionOverlay(context: Context) : View(context) {
         )
     }
 
-    // تصویر راهنمای تنظیم دوربین
+    // نمایش تصویر راهنمای دوربین با حفظ نسبت تصویر
     private fun drawReferenceGuide(canvas: Canvas) {
 
-        if (width <= 0 || height <= 0) return
-
-        val w = width.toFloat()
-        val h = height.toFloat()
-
-        val alpha = guideOverlayAlpha
-
-        if (alpha <= 0) return
-
-        val gold = Color.rgb(229, 189, 105)
-
-        guidePaint.color = gold
-        guidePaint.alpha = alpha
-
-        guideFillPaint.color = gold
-        guideFillPaint.alpha = (alpha * 0.12f).toInt()
-
-        guideTextPaint.alpha =
-            (alpha * 2.2f).toInt().coerceAtMost(180)
-
-        // محدوده کلی مسیر نوار نقاله
-        val conveyor = Path().apply {
-            moveTo(w * 0.08f, h * 0.24f)
-            lineTo(w * 0.92f, h * 0.24f)
-            lineTo(w * 0.99f, h * 0.94f)
-            lineTo(w * 0.01f, h * 0.94f)
-            close()
+        if (width <= 0 || height <= 0 || guideOverlayAlpha <= 0) {
+            return
         }
 
-        canvas.drawPath(conveyor, guideFillPaint)
-        canvas.drawPath(conveyor, guidePaint)
+        val bitmap = guideBitmap ?: return
 
-        // خطوط کناری نوار نقاله
-        canvas.drawLine(
-            w * 0.08f, h * 0.24f,
-            w * 0.01f, h * 0.94f,
-            guidePaint
-        )
+        val viewWidth = width.toFloat()
+        val viewHeight = height.toFloat()
 
-        canvas.drawLine(
-            w * 0.92f, h * 0.24f,
-            w * 0.99f, h * 0.94f,
-            guidePaint
-        )
+        val bitmapRatio =
+            bitmap.width.toFloat() / bitmap.height.toFloat()
 
-        // خط مرکزی برای تنظیم زاویه دوربین
-        canvas.drawLine(
-            w * 0.5f, h * 0.20f,
-            w * 0.5f, h * 0.94f,
-            guidePaint
-        )
+        val viewRatio = viewWidth / viewHeight
 
-        // محدوده پیشنهادی قرارگیری کیسه
-        val bagRect = RectF(
-            w * 0.27f,
-            h * 0.39f,
-            w * 0.73f,
-            h * 0.69f
-        )
+        // برش مرکزی تصویر برای پر کردن پیش‌نمایش بدون کشیدگی
+        val source = if (bitmapRatio > viewRatio) {
 
-        canvas.drawRoundRect(
-            bagRect,
-            18f,
-            18f,
-            guideFillPaint
-        )
+            val cropWidth =
+                (bitmap.height * viewRatio).toInt().coerceAtLeast(1)
 
-        canvas.drawRoundRect(
-            bagRect,
-            18f,
-            18f,
-            guidePaint
-        )
+            val left = (bitmap.width - cropWidth) / 2
 
-        // شکل شماتیک کیسه
-        val bag = Path().apply {
-            moveTo(w * 0.35f, h * 0.44f)
-            lineTo(w * 0.65f, h * 0.44f)
-            lineTo(w * 0.68f, h * 0.63f)
-            lineTo(w * 0.32f, h * 0.63f)
-            close()
+            Rect(
+                left,
+                0,
+                left + cropWidth,
+                bitmap.height
+            )
+
+        } else {
+
+            val cropHeight =
+                (bitmap.width / viewRatio).toInt().coerceAtLeast(1)
+
+            val top = (bitmap.height - cropHeight) / 2
+
+            Rect(
+                0,
+                top,
+                bitmap.width,
+                top + cropHeight
+            )
         }
 
-        canvas.drawPath(bag, guidePaint)
+        guideBitmapPaint.alpha = guideOverlayAlpha
 
-        // خطوط گوشه‌ای محدوده
-        val cornerLength = w * 0.055f
-
-        drawCorner(
-            canvas,
-            w * 0.20f,
-            h * 0.35f,
-            cornerLength,
-            guidePaint
-        )
-
-        drawCorner(
-            canvas,
-            w * 0.80f,
-            h * 0.35f,
-            cornerLength,
-            guidePaint,
-            true
-        )
-
-        drawCorner(
-            canvas,
-            w * 0.20f,
-            h * 0.74f,
-            cornerLength,
-            guidePaint,
-            false,
-            true
-        )
-
-        drawCorner(
-            canvas,
-            w * 0.80f,
-            h * 0.74f,
-            cornerLength,
-            guidePaint,
-            true,
-            true
-        )
-
-        // نوشته‌های راهنما
-        canvas.drawText(
-            "محدوده تنظیم دوربین",
-            w * 0.5f,
-            h * 0.17f,
-            guideTextPaint
-        )
-
-        canvas.drawText(
-            "محدوده قرارگیری کیسه",
-            w * 0.5f,
-            h * 0.73f,
-            guideTextPaint
-        )
-    }
-
-    private fun drawCorner(
-        canvas: Canvas,
-        x: Float,
-        y: Float,
-        length: Float,
-        paint: Paint,
-        right: Boolean = false,
-        bottom: Boolean = false
-    ) {
-
-        val directionX = if (right) -1f else 1f
-        val directionY = if (bottom) -1f else 1f
-
-        canvas.drawLine(
-            x,
-            y,
-            x + length * directionX,
-            y,
-            paint
-        )
-
-        canvas.drawLine(
-            x,
-            y,
-            x,
-            y + length * directionY,
-            paint
+        canvas.drawBitmap(
+            bitmap,
+            source,
+            RectF(
+                0f,
+                0f,
+                viewWidth,
+                viewHeight
+            ),
+            guideBitmapPaint
         )
     }
 
