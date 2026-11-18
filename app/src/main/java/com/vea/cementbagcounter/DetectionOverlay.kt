@@ -29,13 +29,13 @@ class DetectionOverlay(context: Context) : View(context) {
     private var dragging = 0
 
     // تنظیمات تصویر راهنما
-    var guideVisible = true
+    var guideOverlayEnabled = true
         set(value) {
             field = value
             invalidate()
         }
 
-    var guideOpacity = 48
+    var guideOverlayAlpha = 48
         set(value) {
             field = value.coerceIn(0, 255)
             invalidate()
@@ -91,14 +91,6 @@ class DetectionOverlay(context: Context) : View(context) {
             textAlign = Paint.Align.CENTER
         }
 
-    fun setGuideVisible(visible: Boolean) {
-        guideVisible = visible
-    }
-
-    fun setGuideOpacity(opacity: Int) {
-        guideOpacity = opacity
-    }
-
     fun setDetections(
         list: List<Detection>,
         w: Int,
@@ -150,7 +142,7 @@ class DetectionOverlay(context: Context) : View(context) {
 
         // مرحله اول: تصویر راهنما
         // همیشه زیر کادرها و خطوط شمارش رسم می‌شود.
-        if (guideVisible) {
+        if (guideOverlayEnabled) {
             drawReferenceGuide(canvas)
         }
 
@@ -232,7 +224,7 @@ class DetectionOverlay(context: Context) : View(context) {
         val w = width.toFloat()
         val h = height.toFloat()
 
-        val alpha = guideOpacity
+        val alpha = guideOverlayAlpha
 
         if (alpha <= 0) return
 
