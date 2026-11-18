@@ -80,6 +80,10 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var preview: PreviewView
     private lateinit var overlay: DetectionOverlay
+    private fun testOverlay() {
+        overlay.guideOverlayEnabled = true
+        overlay.guideOverlayAlpha = 48
+    }
     private lateinit var countText: TextView
     private lateinit var statusText: TextView
     private lateinit var detector: YoloDetector
