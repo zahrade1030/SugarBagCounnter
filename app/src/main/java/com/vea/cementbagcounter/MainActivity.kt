@@ -1,8 +1,9 @@
-
 package com.vea.cementbagcounter
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
@@ -80,11 +81,11 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var preview: PreviewView
     private lateinit var overlay: DetectionOverlay
+    private lateinit var guideImage: ImageView
 
-    private fun testOverlay() {
-        overlay.guideOverlayEnabled = true
-        overlay.guideOverlayAlpha = 48
-    }
+    private var guideBitmap: Bitmap? = null
+    private var guideVisible = true
+    private var guideOpacity = 48
 
     private lateinit var countText: TextView
     private lateinit var statusText: TextView
@@ -168,20 +169,35 @@ class MainActivity : AppCompatActivity() {
             scaleType = PreviewView.ScaleType.FILL_CENTER
         }
 
-        overlay = DetectionOverlay(this).apply {
-            guideOverlayEnabled =
-                prefs.getBoolean("guide_visible", true)
-            
-            guideOverlayAlpha =
-                prefs.getInt("guide_opacity", 48)
+        guideVisible = prefs.getBoolean("guide_visible", true)
+        guideOpacity = prefs.getInt("guide_opacity", 48).coerceIn(0, 255)
+
+        guideImage = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            alpha = guideOpacity / 255f
+            visibility = if (guideVisible) View.VISIBLE else View.GONE
+            isClickable = false
+            isFocusable = false
+            contentDescription = "تصویر راهنمای تنظیم دوربین"
         }
 
-        
+        loadGuideImage()
+
+        // این لایه فقط خطوط شمارش و کادرهای تشخیص را رسم می‌کند.
+        overlay = DetectionOverlay(this)
 
         val cameraFrame = FrameLayout(this)
 
         cameraFrame.addView(
             preview,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+
+        cameraFrame.addView(
+            guideImage,
             FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
@@ -351,6 +367,28 @@ class MainActivity : AppCompatActivity() {
     // تنظیمات تصویر راهنما
     // --------------------------------------------------
 
+    private fun loadGuideImage() {
+        try {
+            guideBitmap = assets.open("guide_overlay.jpg").use { stream ->
+                BitmapFactory.decodeStream(stream)
+            }
+
+            if (guideBitmap == null) {
+                Log.e("SugarCounter", "guide_overlay.jpg could not be decoded")
+                guideImage.visibility = View.GONE
+                return
+            }
+
+            guideImage.setImageBitmap(guideBitmap)
+            guideImage.alpha = guideOpacity / 255f
+            guideImage.visibility = if (guideVisible) View.VISIBLE else View.GONE
+        } catch (e: Exception) {
+            guideBitmap = null
+            guideImage.visibility = View.GONE
+            Log.e("SugarCounter", "Could not load guide_overlay.jpg", e)
+        }
+    }
+
     private fun showGuideSettings() {
 
         val content = LinearLayout(this).apply {
@@ -380,7 +418,7 @@ class MainActivity : AppCompatActivity() {
             text = "نمایش تصویر راهنما"
             textSize = 15f
             setTextColor(Color.WHITE)
-            isChecked = overlay.guideOverlayEnabled
+            isChecked = guideVisible
         }
 
         content.addView(
@@ -392,7 +430,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         val opacityLabel = TextView(this).apply {
-            text = "شفافیت تصویر راهنما: ${overlay.guideOverlayAlpha * 100 / 255}%"
+            text = "شفافیت تصویر راهنما: ${guideOpacity * 100 / 255}%"
             textSize = 14f
             setTextColor(industrialLightGold)
             setPadding(0, dp(12), 0, dp(5))
@@ -402,7 +440,7 @@ class MainActivity : AppCompatActivity() {
 
         val opacitySeekBar = SeekBar(this).apply {
             max = 100
-            progress = overlay.guideOverlayAlpha * 100 / 255
+            progress = guideOpacity * 100 / 255
         }
 
         content.addView(
@@ -414,7 +452,8 @@ class MainActivity : AppCompatActivity() {
         )
 
         guideSwitch.setOnCheckedChangeListener { _, checked ->
-            overlay.guideOverlayEnabled = checked
+            guideVisible = checked
+            guideImage.visibility = if (checked) View.VISIBLE else View.GONE
 
             prefs.edit()
                 .putBoolean("guide_visible", checked)
@@ -431,7 +470,8 @@ class MainActivity : AppCompatActivity() {
                 ) {
                     val opacity = progress * 255 / 100
 
-                    overlay.guideOverlayAlpha = opacity
+                    guideOpacity = opacity
+                    guideImage.alpha = guideOpacity / 255f
 
                     opacityLabel.text =
                         "شفافیت تصویر راهنما: $progress%"
@@ -1345,5 +1385,12 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         executor.shutdown()
         detector.close()
+
+        if (::guideImage.isInitialized) {
+            guideImage.setImageDrawable(null)
+        }
+
+        guideBitmap?.recycle()
+        guideBitmap = null
     }
 }
