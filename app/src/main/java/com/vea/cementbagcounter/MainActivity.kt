@@ -1,16 +1,14 @@
+
 package com.vea.cementbagcounter
 
 import android.Manifest
-import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.provider.MediaStore
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -31,7 +29,6 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -41,43 +38,43 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 class MainActivity : AppCompatActivity() {
+
     private val industrialBlack = Color.rgb(23, 25, 28)
-private val industrialGold = Color.rgb(181, 138, 55)
-private val industrialLightGold = Color.rgb(229, 189, 105)
-private val industrialButton = Color.rgb(41, 43, 47)
-private val industrialBorder = Color.rgb(85, 87, 91)
+    private val industrialGold = Color.rgb(181, 138, 55)
+    private val industrialLightGold = Color.rgb(229, 189, 105)
+    private val industrialButton = Color.rgb(41, 43, 47)
+    private val industrialBorder = Color.rgb(85, 87, 91)
 
-private fun createIndustrialButton(
-    title: String,
-    primary: Boolean = false
-): Button {
-    return Button(this).apply {
-        text = title
-        textSize = 15f
-        isAllCaps = false
-        typeface = Typeface.DEFAULT_BOLD
+    private fun createIndustrialButton(
+        title: String,
+        primary: Boolean = false
+    ): Button {
+        return Button(this).apply {
+            text = title
+            textSize = 15f
+            isAllCaps = false
+            typeface = Typeface.DEFAULT_BOLD
 
-        setTextColor(
-            if (primary) industrialBlack else industrialLightGold
-        )
-
-        background = GradientDrawable().apply {
-            setColor(
-                if (primary) industrialGold else industrialButton
+            setTextColor(
+                if (primary) industrialBlack else industrialLightGold
             )
-            cornerRadius = dp(14).toFloat()
-            setStroke(
-                dp(1),
-                if (primary) industrialGold else industrialBorder
-            )
+
+            background = GradientDrawable().apply {
+                setColor(
+                    if (primary) industrialGold else industrialButton
+                )
+                cornerRadius = dp(14).toFloat()
+                setStroke(
+                    dp(1),
+                    if (primary) industrialGold else industrialBorder
+                )
+            }
+
+            elevation = dp(3).toFloat()
+            minHeight = dp(52)
+            minimumHeight = dp(52)
         }
-
-        elevation = dp(3).toFloat()
-        minHeight = dp(52)
-        minimumHeight = dp(52)
     }
-}
-    
 
     private lateinit var preview: PreviewView
     private lateinit var overlay: DetectionOverlay
@@ -143,187 +140,182 @@ private fun createIndustrialButton(
     // رابط اصلی برنامه
     // --------------------------------------------------
 
-    
-private fun buildUi() {
+    private fun buildUi() {
 
-    val base = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setBackgroundColor(industrialBlack)
-    }
-
-    val header = TextView(this).apply {
-        text = "شمارشگر هوشمند کیسه‌های قند"
-        textSize = 21f
-        setTextColor(industrialLightGold)
-        gravity = Gravity.CENTER
-        setPadding(dp(8), dp(16), dp(8), dp(16))
-        typeface = Typeface.DEFAULT_BOLD
-    }
-
-    preview = PreviewView(this).apply {
-        scaleType = PreviewView.ScaleType.FILL_CENTER
-    }
-
-    overlay = DetectionOverlay(this)
-
-    val cameraFrame = FrameLayout(this)
-
-    cameraFrame.addView(
-        preview,
-        FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        )
-    )
-
-    cameraFrame.addView(
-        overlay,
-        FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        )
-    )
-
-    countText = TextView(this).apply {
-        text = "تعداد: 0"
-        textSize = 30f
-        setTextColor(industrialLightGold)
-        gravity = Gravity.CENTER
-        setPadding(dp(8), dp(14), dp(8), dp(4))
-        typeface = Typeface.DEFAULT_BOLD
-    }
-
-    statusText = TextView(this).apply {
-        text = "خطوط شمارش را تنظیم کنید"
-        textSize = 14f
-        setTextColor(Color.LTGRAY)
-        gravity = Gravity.CENTER
-        setPadding(dp(8), dp(5), dp(8), dp(12))
-    }
-
-    val controls = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(8), dp(4), dp(8), dp(4))
-    }
-
-    val firstRow = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER
-    }
-
-    val secondRow = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER
-    }
-
-    fun addActionButton(
-        parent: LinearLayout,
-        label: String,
-        action: () -> Unit
-    ) {
-        val button = createIndustrialButton(
-            title = label,
-            primary = label == "شروع شمارش"
-        ).apply {
-            setOnClickListener { action() }
+        val base = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(industrialBlack)
         }
 
-        parent.addView(
-            button,
+        val header = TextView(this).apply {
+            text = "شمارشگر هوشمند کیسه‌های قند"
+            textSize = 21f
+            setTextColor(industrialLightGold)
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(16), dp(8), dp(16))
+            typeface = Typeface.DEFAULT_BOLD
+        }
+
+        preview = PreviewView(this).apply {
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+        }
+
+        overlay = DetectionOverlay(this)
+
+        val cameraFrame = FrameLayout(this)
+
+        cameraFrame.addView(
+            preview,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+
+        cameraFrame.addView(
+            overlay,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+
+        countText = TextView(this).apply {
+            text = "تعداد: 0"
+            textSize = 30f
+            setTextColor(industrialLightGold)
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(14), dp(8), dp(4))
+            typeface = Typeface.DEFAULT_BOLD
+        }
+
+        statusText = TextView(this).apply {
+            text = "خطوط شمارش را تنظیم کنید"
+            textSize = 14f
+            setTextColor(Color.LTGRAY)
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(5), dp(8), dp(12))
+        }
+
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(8), dp(4), dp(8), dp(4))
+        }
+
+        val firstRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+
+        val secondRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+
+        fun addActionButton(
+            parent: LinearLayout,
+            label: String,
+            action: () -> Unit
+        ) {
+            val button = createIndustrialButton(
+                title = label,
+                primary = label == "شروع شمارش"
+            ).apply {
+                setOnClickListener { action() }
+            }
+
+            parent.addView(
+                button,
+                LinearLayout.LayoutParams(
+                    0,
+                    dp(52),
+                    1f
+                ).apply {
+                    setMargins(dp(3), dp(3), dp(3), dp(3))
+                }
+            )
+        }
+
+        addActionButton(firstRow, "تنظیم خطوط") {
+            setupMode = true
+            overlay.isSetup = true
+            statusText.text = "خطوط را با لمس جابه‌جا کنید"
+        }
+
+        addActionButton(firstRow, "شروع شمارش") {
+            tracker.reset()
+            tracker.setLines(
+                overlay.lineTop,
+                overlay.lineBottom
+            )
+
+            setupMode = false
+            overlay.isSetup = false
+            running = true
+
+            statusText.text = "شمارش فعال است"
+        }
+
+        addActionButton(firstRow, "توقف") {
+            stopCounting()
+        }
+
+        addActionButton(secondRow, "ریست") {
+            totalCount = 0
+            tracker.reset()
+            countText.text = "تعداد: 0"
+            statusText.text = "شمارش از ابتدا آماده است"
+        }
+
+        addActionButton(secondRow, "تاریخچه") {
+            showHistory()
+        }
+
+        addActionButton(secondRow, "آمار") {
+            showStatistics()
+        }
+
+        addActionButton(secondRow, "Excel") {
+            exportExcel()
+        }
+
+        val aboutButton = createIndustrialButton("درباره برنامه").apply {
+            setOnClickListener { showAbout() }
+        }
+
+        controls.addView(firstRow)
+        controls.addView(secondRow)
+
+        controls.addView(
+            aboutButton,
             LinearLayout.LayoutParams(
-                0,
-                dp(52),
-                1f
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(52)
             ).apply {
                 setMargins(dp(3), dp(3), dp(3), dp(3))
             }
         )
-    }
 
-    addActionButton(firstRow, "تنظیم خطوط") {
-        setupMode = true
-        overlay.isSetup = true
-        statusText.text = "خطوط را با لمس جابه‌جا کنید"
-    }
+        base.addView(header)
 
-    addActionButton(firstRow, "شروع شمارش") {
-        tracker.reset()
-        tracker.setLines(
-            overlay.lineTop,
-            overlay.lineBottom
+        base.addView(
+            cameraFrame,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
         )
 
-        setupMode = false
-        overlay.isSetup = false
-        running = true
+        base.addView(countText)
+        base.addView(statusText)
+        base.addView(controls)
 
-        statusText.text = "شمارش فعال است"
+        setContentView(base)
     }
-
-    addActionButton(firstRow, "توقف") {
-        stopCounting()
-    }
-
-    addActionButton(secondRow, "ریست") {
-        totalCount = 0
-        tracker.reset()
-        countText.text = "تعداد: 0"
-        statusText.text = "شمارش از ابتدا آماده است"
-    }
-
-    addActionButton(secondRow, "تاریخچه") {
-        showHistory()
-    }
-
-    addActionButton(secondRow, "آمار") {
-        showStatistics()
-    }
-
-    addActionButton(secondRow, "Excel") {
-        exportExcel()
-    }
-
-    val aboutButton = createIndustrialButton("درباره برنامه").apply {
-        setOnClickListener { showAbout() }
-    }
-
-    controls.addView(firstRow)
-    controls.addView(secondRow)
-
-    controls.addView(
-        aboutButton,
-        LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(52)
-        ).apply {
-            setMargins(dp(3), dp(3), dp(3), dp(3))
-        }
-    )
-
-    base.addView(header)
-
-    base.addView(
-        cameraFrame,
-        LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            0,
-            1f
-        )
-    )
-
-    base.addView(countText)
-    base.addView(statusText)
-    base.addView(controls)
-
-    setContentView(base)
-}
-
-
-    
-    
 
     // --------------------------------------------------
-    // دوربین و تشخیص
+    // دوربین و تشخیص و ردیابی
     // --------------------------------------------------
 
     private fun startCamera() {
@@ -359,17 +351,27 @@ private fun buildUi() {
 
                     runOnUiThread {
 
-                        overlay.setDetections(
-                            detections,
-                            bitmap.width,
-                            bitmap.height
-                        )
+                        if (setupMode) {
 
-                        if (!setupMode) {
-                            val newCount = tracker.update(detections)
+                            overlay.setDetections(
+                                detections,
+                                bitmap.width,
+                                bitmap.height
+                            )
 
-                            if (newCount > 0) {
-                                totalCount += newCount
+                        } else {
+
+                            val trackingResult =
+                                tracker.updateWithTracks(detections)
+
+                            overlay.setTrackedDetections(
+                                trackingResult.trackedDetections,
+                                bitmap.width,
+                                bitmap.height
+                            )
+
+                            if (trackingResult.newCounts > 0) {
+                                totalCount += trackingResult.newCounts
                                 countText.text = "تعداد: $totalCount"
                             }
                         }
@@ -468,8 +470,8 @@ private fun buildUi() {
 
             items.add(
                 "تاریخ: ${item.optString("date")}\n" +
-                "ساعت: ${item.optString("time")}\n" +
-                "تعداد کیسه: ${item.optInt("count")}"
+                    "ساعت: ${item.optString("time")}\n" +
+                    "تعداد کیسه: ${item.optInt("count")}"
             )
         }
 
@@ -503,6 +505,7 @@ private fun buildUi() {
         val history = getHistory()
 
         val now = System.currentTimeMillis()
+
         val dayStart = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
@@ -835,9 +838,9 @@ private fun buildUi() {
             typeface = Typeface.DEFAULT_BOLD
             setPadding(0, dp(8), 0, dp(5))
         }
-        
+
         content.addView(teamTitle)
-        
+
         val membersTitle = TextView(this).apply {
             text = "تیم توسعه پروژه"
             textSize = 13f
@@ -846,7 +849,7 @@ private fun buildUi() {
             setPadding(0, dp(2), 0, dp(13))
             typeface = Typeface.DEFAULT
         }
-        
+
         content.addView(membersTitle)
 
         val members = listOf(
@@ -935,8 +938,6 @@ private fun buildUi() {
                     industrialButton,
                     16,
                     industrialBorder
-                    
-                    
                 )
             )
         }
@@ -993,8 +994,6 @@ private fun buildUi() {
                     industrialButton,
                     12,
                     industrialBorder
-                    
-                    
                 )
             )
             layoutDirection = View.LAYOUT_DIRECTION_RTL
@@ -1006,8 +1005,6 @@ private fun buildUi() {
                     industrialGold,
                     50,
                     industrialGold
-                    
-                    
                 )
             )
         }
@@ -1043,11 +1040,11 @@ private fun buildUi() {
             gravity = Gravity.CENTER
             setPadding(dp(8), dp(6), dp(8), dp(6))
             setBackground(
-               aboutBackground(
-                   industrialBlack,
-                   8,
-                   industrialGold
-               ) 
+                aboutBackground(
+                    industrialBlack,
+                    8,
+                    industrialGold
+                )
             )
         }
 
@@ -1148,7 +1145,7 @@ private fun buildUi() {
             181, 212, 243, 273, 304, 334
         )
 
-        var gy = gyInput
+        val gy = gyInput
         val gm = gmInput
         val gd = gdInput
 
