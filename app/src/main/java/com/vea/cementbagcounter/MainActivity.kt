@@ -17,6 +17,8 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.SeekBar
+import android.widget.Switch
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -160,7 +162,10 @@ class MainActivity : AppCompatActivity() {
             scaleType = PreviewView.ScaleType.FILL_CENTER
         }
 
-        overlay = DetectionOverlay(this)
+        overlay = DetectionOverlay(this).apply {
+            guideVisible = prefs.getBoolean("guide_visible", true)
+            guideOpacity = prefs.getInt("guide_opacity", 48)
+        }
 
         val cameraFrame = FrameLayout(this)
 
@@ -279,12 +284,29 @@ class MainActivity : AppCompatActivity() {
             exportExcel()
         }
 
+        val guideSettingsButton =
+            createIndustrialButton("تنظیم تصویر راهنما").apply {
+                setOnClickListener {
+                    showGuideSettings()
+                }
+            }
+
         val aboutButton = createIndustrialButton("درباره برنامه").apply {
             setOnClickListener { showAbout() }
         }
 
         controls.addView(firstRow)
         controls.addView(secondRow)
+
+        controls.addView(
+            guideSettingsButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(52)
+            ).apply {
+                setMargins(dp(3), dp(3), dp(3), dp(3))
+            }
+        )
 
         controls.addView(
             aboutButton,
@@ -312,6 +334,121 @@ class MainActivity : AppCompatActivity() {
         base.addView(controls)
 
         setContentView(base)
+    }
+
+    // --------------------------------------------------
+    // تنظیمات تصویر راهنما
+    // --------------------------------------------------
+
+    private fun showGuideSettings() {
+
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(18), dp(22), dp(12))
+            setBackgroundColor(industrialBlack)
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+        }
+
+        val title = TextView(this).apply {
+            text = "تنظیم تصویر راهنما"
+            textSize = 19f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(industrialLightGold)
+            gravity = Gravity.CENTER
+        }
+
+        content.addView(
+            title,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(45)
+            )
+        )
+
+        val guideSwitch = Switch(this).apply {
+            text = "نمایش تصویر راهنما"
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            isChecked = overlay.guideVisible
+        }
+
+        content.addView(
+            guideSwitch,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(55)
+            )
+        )
+
+        val opacityLabel = TextView(this).apply {
+            text = "شفافیت تصویر راهنما: ${overlay.guideOpacity * 100 / 255}%"
+            textSize = 14f
+            setTextColor(industrialLightGold)
+            setPadding(0, dp(12), 0, dp(5))
+        }
+
+        content.addView(opacityLabel)
+
+        val opacitySeekBar = SeekBar(this).apply {
+            max = 100
+            progress = overlay.guideOpacity * 100 / 255
+        }
+
+        content.addView(
+            opacitySeekBar,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(48)
+            )
+        )
+
+        guideSwitch.setOnCheckedChangeListener { _, checked ->
+            overlay.guideVisible = checked
+
+            prefs.edit()
+                .putBoolean("guide_visible", checked)
+                .apply()
+        }
+
+        opacitySeekBar.setOnSeekBarChangeListener(
+            object : SeekBar.OnSeekBarChangeListener {
+
+                override fun onProgressChanged(
+                    seekBar: SeekBar?,
+                    progress: Int,
+                    fromUser: Boolean
+                ) {
+                    val opacity = progress * 255 / 100
+
+                    overlay.guideOpacity = opacity
+
+                    opacityLabel.text =
+                        "شفافیت تصویر راهنما: $progress%"
+                }
+
+                override fun onStartTrackingTouch(
+                    seekBar: SeekBar?
+                ) {
+                }
+
+                override fun onStopTrackingTouch(
+                    seekBar: SeekBar?
+                ) {
+                    val opacity =
+                        seekBar?.progress?.times(255)?.div(100) ?: 48
+
+                    prefs.edit()
+                        .putInt("guide_opacity", opacity)
+                        .apply()
+                }
+            }
+        )
+
+        AlertDialog.Builder(this)
+            .setView(content)
+            .setPositiveButton("ذخیره و بستن", null)
+            .setNegativeButton("بستن", null)
+            .show()
     }
 
     // --------------------------------------------------
