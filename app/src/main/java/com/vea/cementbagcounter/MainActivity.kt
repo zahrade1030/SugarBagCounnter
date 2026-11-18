@@ -82,8 +82,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var overlay: DetectionOverlay
 
     private fun testOverlay() {
-        overlay.setGuideOverlayEnabled(true)
-        overlay.setGuideOverlayAlpha(48)
+        overlay.guideOverlayEnabled = true
+        overlay.guideOverlayAlpha = 48
     }
 
     private lateinit var countText: TextView
@@ -169,13 +169,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         overlay = DetectionOverlay(this).apply {
-            setGuideOverlayEnabled(
+            guideOverlayEnabled =
                 prefs.getBoolean("guide_visible", true)
-            )
-            setGuideOverlayAlpha(
+            
+            guideOverlayAlpha =
                 prefs.getInt("guide_opacity", 48)
-            )
         }
+
+        
 
         val cameraFrame = FrameLayout(this)
 
@@ -379,7 +380,7 @@ class MainActivity : AppCompatActivity() {
             text = "نمایش تصویر راهنما"
             textSize = 15f
             setTextColor(Color.WHITE)
-            isChecked = overlay.isGuideOverlayEnabled()
+            isChecked = overlay.guideOverlayEnabled
         }
 
         content.addView(
@@ -391,7 +392,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         val opacityLabel = TextView(this).apply {
-            text = "شفافیت تصویر راهنما: ${overlay.getGuideOverlayAlpha() * 100 / 255}%"
+            text = "شفافیت تصویر راهنما: ${overlay.guideOverlayAlpha * 100 / 255}%"
             textSize = 14f
             setTextColor(industrialLightGold)
             setPadding(0, dp(12), 0, dp(5))
@@ -401,7 +402,7 @@ class MainActivity : AppCompatActivity() {
 
         val opacitySeekBar = SeekBar(this).apply {
             max = 100
-            progress = overlay.getGuideOverlayAlpha() * 100 / 255
+            progress = overlay.guideOverlayAlpha * 100 / 255
         }
 
         content.addView(
@@ -413,7 +414,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         guideSwitch.setOnCheckedChangeListener { _, checked ->
-            overlay.setGuideOverlayEnabled(checked)
+            overlay.guideOverlayEnabled = checked
 
             prefs.edit()
                 .putBoolean("guide_visible", checked)
@@ -430,7 +431,7 @@ class MainActivity : AppCompatActivity() {
                 ) {
                     val opacity = progress * 255 / 100
 
-                    overlay.setGuideOverlayAlpha(opacity)
+                    overlay.guideOverlayAlpha = opacity
 
                     opacityLabel.text =
                         "شفافیت تصویر راهنما: $progress%"
