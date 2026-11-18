@@ -29,17 +29,25 @@ class DetectionOverlay(context: Context) : View(context) {
     private var dragging = 0
 
     // تنظیمات تصویر راهنما
-    var guideOverlayEnabled = true
-        set(value) {
-            field = value
-            invalidate()
-        }
-
-    var guideOverlayAlpha = 48
-        set(value) {
-            field = value.coerceIn(0, 255)
-            invalidate()
-        }
+    private var guideOverlayEnabled = true
+    private var guideOverlayAlpha = 48
+    
+    fun setGuideOverlayEnabled(enabled: Boolean) {
+        guideOverlayEnabled = enabled
+        invalidate()
+    }
+    
+    fun isGuideOverlayEnabled(): Boolean {
+        return guideOverlayEnabled
+    }
+    fun setGuideOverlayAlpha(alpha: Int) {
+        guideOverlayAlpha = alpha.coerceIn(0, 255)
+        invalidate()
+    }
+    
+    fun getGuideOverlayAlpha(): Int {
+        return guideOverlayAlpha
+    }
 
     // کادر تشخیص
     private val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
