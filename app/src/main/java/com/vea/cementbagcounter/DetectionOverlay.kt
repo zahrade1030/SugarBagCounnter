@@ -141,7 +141,6 @@ class DetectionOverlay(context: Context) : View(context) {
         super.onDraw(canvas)
 
         // مرحله اول: تصویر راهنما
-        // همیشه زیر کادرها و خطوط شمارش رسم می‌شود.
         if (guideOverlayEnabled) {
             drawReferenceGuide(canvas)
         }
@@ -152,9 +151,7 @@ class DetectionOverlay(context: Context) : View(context) {
 
         // مرحله دوم: کادرهای تشخیص و ردیابی
         if (showingTracked) {
-
             trackedDetections.forEach { tracked ->
-
                 drawDetection(
                     canvas,
                     tracked.detection,
@@ -164,11 +161,8 @@ class DetectionOverlay(context: Context) : View(context) {
                     tracked.id
                 )
             }
-
         } else {
-
             detections.forEach { detection ->
-
                 drawDetection(
                     canvas,
                     detection,
@@ -213,10 +207,7 @@ class DetectionOverlay(context: Context) : View(context) {
         )
     }
 
-    // --------------------------------------------------
     // تصویر راهنمای تنظیم دوربین
-    // --------------------------------------------------
-
     private fun drawReferenceGuide(canvas: Canvas) {
 
         if (width <= 0 || height <= 0) return
@@ -228,7 +219,6 @@ class DetectionOverlay(context: Context) : View(context) {
 
         if (alpha <= 0) return
 
-        // رنگ طلایی هماهنگ با طراحی صنعتی برنامه
         val gold = Color.rgb(229, 189, 105)
 
         guidePaint.color = gold
@@ -237,7 +227,8 @@ class DetectionOverlay(context: Context) : View(context) {
         guideFillPaint.color = gold
         guideFillPaint.alpha = (alpha * 0.12f).toInt()
 
-        guideTextPaint.alpha = (alpha * 2.2f).toInt().coerceAtMost(180)
+        guideTextPaint.alpha =
+            (alpha * 2.2f).toInt().coerceAtMost(180)
 
         // محدوده کلی مسیر نوار نقاله
         val conveyor = Path().apply {
@@ -248,39 +239,26 @@ class DetectionOverlay(context: Context) : View(context) {
             close()
         }
 
-        canvas.drawPath(
-            conveyor,
-            guideFillPaint
-        )
-
-        canvas.drawPath(
-            conveyor,
-            guidePaint
-        )
+        canvas.drawPath(conveyor, guideFillPaint)
+        canvas.drawPath(conveyor, guidePaint)
 
         // خطوط کناری نوار نقاله
         canvas.drawLine(
-            w * 0.08f,
-            h * 0.24f,
-            w * 0.01f,
-            h * 0.94f,
+            w * 0.08f, h * 0.24f,
+            w * 0.01f, h * 0.94f,
             guidePaint
         )
 
         canvas.drawLine(
-            w * 0.92f,
-            h * 0.24f,
-            w * 0.99f,
-            h * 0.94f,
+            w * 0.92f, h * 0.24f,
+            w * 0.99f, h * 0.94f,
             guidePaint
         )
 
         // خط مرکزی برای تنظیم زاویه دوربین
         canvas.drawLine(
-            w * 0.5f,
-            h * 0.20f,
-            w * 0.5f,
-            h * 0.94f,
+            w * 0.5f, h * 0.20f,
+            w * 0.5f, h * 0.94f,
             guidePaint
         )
 
@@ -315,10 +293,7 @@ class DetectionOverlay(context: Context) : View(context) {
             close()
         }
 
-        canvas.drawPath(
-            bag,
-            guidePaint
-        )
+        canvas.drawPath(bag, guidePaint)
 
         // خطوط گوشه‌ای محدوده
         val cornerLength = w * 0.055f
@@ -406,10 +381,7 @@ class DetectionOverlay(context: Context) : View(context) {
         )
     }
 
-    // --------------------------------------------------
     // نمایش کادر تشخیص و شناسه کیسه
-    // --------------------------------------------------
-
     private fun drawDetection(
         canvas: Canvas,
         detection: Detection,
@@ -462,10 +434,7 @@ class DetectionOverlay(context: Context) : View(context) {
         )
     }
 
-    // --------------------------------------------------
     // جابه‌جایی خطوط شمارش با لمس
-    // --------------------------------------------------
-
     override fun onTouchEvent(event: MotionEvent): Boolean {
 
         if (!isSetup) return false
