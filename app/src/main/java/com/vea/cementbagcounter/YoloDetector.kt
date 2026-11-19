@@ -210,20 +210,6 @@ class YoloDetector(context: Context) {
 
         val dimensions = shape.map { it.toInt() }
 
-        /*
-         * Supported common formats:
-         *
-         * YOLOv5:
-         * [1, N, 5 + classes]
-         *
-         * YOLOv8:
-         * [1, 4 + classes, N]
-         *
-         * Single-class models:
-         * [1, N, 6]
-         * [1, 6, N]
-         */
-
         val dim1 = dimensions[dimensions.size - 2]
         val dim2 = dimensions[dimensions.size - 1]
 
