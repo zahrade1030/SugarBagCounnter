@@ -1,3 +1,4 @@
+
 package com.vea.cementbagcounter
 
 import android.Manifest
@@ -5,6 +6,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
@@ -12,6 +14,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import android.widget.Button
 import android.widget.FrameLayout
@@ -48,44 +52,27 @@ class MainActivity : AppCompatActivity() {
     private val industrialButton = Color.rgb(41, 43, 47)
     private val industrialBorder = Color.rgb(85, 87, 91)
 
-    private fun createIndustrialButton(
-        title: String,
-        primary: Boolean = false
-    ): Button {
-        return Button(this).apply {
-            text = title
-            textSize = 15f
-            isAllCaps = false
-            typeface = Typeface.DEFAULT_BOLD
-
-            setTextColor(
-                if (primary) industrialBlack else industrialLightGold
-            )
-
-            background = GradientDrawable().apply {
-                setColor(
-                    if (primary) industrialGold else industrialButton
-                )
-                cornerRadius = dp(14).toFloat()
-                setStroke(
-                    dp(1),
-                    if (primary) industrialGold else industrialBorder
-                )
-            }
-
-            elevation = dp(3).toFloat()
-            minHeight = dp(52)
-            minimumHeight = dp(52)
-        }
-    }
-
     private lateinit var preview: PreviewView
     private lateinit var overlay: DetectionOverlay
     private lateinit var guideImage: ImageView
 
     private var guideBitmap: Bitmap? = null
+
     private var guideVisible = true
     private var guideOpacity = 48
+
+    // تنظیمات اندازه و موقعیت تصویر راهنما
+    private var guideScale = 1f
+    private var guideOffsetX = 0f
+    private var guideOffsetY = 0f
+
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
+
+    private val guideMatrix = Matrix()
+    private lateinit var guideScaleDetector: ScaleGestureDetector
+
+    private var guideGestureMoved = false
 
     private lateinit var countText: TextView
     private lateinit var statusText: TextView
@@ -127,6 +114,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -142,6 +133,43 @@ class MainActivity : AppCompatActivity() {
             startCamera()
         } else {
             permission.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    // --------------------------------------------------
+    // دکمه‌های صنعتی
+    // --------------------------------------------------
+
+    private fun createIndustrialButton(
+        title: String,
+        primary: Boolean = false
+    ): Button {
+
+        return Button(this).apply {
+
+            text = title
+            textSize = 15f
+            isAllCaps = false
+            typeface = Typeface.DEFAULT_BOLD
+
+            setTextColor(
+                if (primary) industrialBlack else industrialLightGold
+            )
+
+            background = GradientDrawable().apply {
+                setColor(
+                    if (primary) industrialGold else industrialButton
+                )
+                cornerRadius = dp(14).toFloat()
+                setStroke(
+                    dp(1),
+                    if (primary) industrialGold else industrialBorder
+                )
+            }
+
+            elevation = dp(3).toFloat()
+            minHeight = dp(52)
+            minimumHeight = dp(52)
         }
     }
 
@@ -172,18 +200,22 @@ class MainActivity : AppCompatActivity() {
         guideVisible = prefs.getBoolean("guide_visible", true)
         guideOpacity = prefs.getInt("guide_opacity", 48).coerceIn(0, 255)
 
+        guideScale = prefs.getFloat("guide_scale", 1f).coerceIn(0.3f, 5f)
+        guideOffsetX = prefs.getFloat("guide_offset_x", 0f)
+        guideOffsetY = prefs.getFloat("guide_offset_y", 0f)
+
         guideImage = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.FIT_CENTER
+            scaleType = ImageView.ScaleType.MATRIX
             alpha = guideOpacity / 255f
             visibility = if (guideVisible) View.VISIBLE else View.GONE
-            isClickable = false
-            isFocusable = false
+            isClickable = true
+            isFocusable = true
             contentDescription = "تصویر راهنمای تنظیم دوربین"
         }
 
         loadGuideImage()
+        setupGuideGestures()
 
-        // این لایه فقط خطوط شمارش و کادرهای تشخیص را رسم می‌کند.
         overlay = DetectionOverlay(this)
 
         val cameraFrame = FrameLayout(this)
@@ -249,6 +281,7 @@ class MainActivity : AppCompatActivity() {
             label: String,
             action: () -> Unit
         ) {
+
             val button = createIndustrialButton(
                 title = label,
                 primary = label == "شروع شمارش"
@@ -275,7 +308,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         addActionButton(firstRow, "شروع شمارش") {
+
             tracker.reset()
+
             tracker.setLines(
                 overlay.lineTop,
                 overlay.lineBottom
@@ -293,8 +328,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         addActionButton(secondRow, "ریست") {
+
             totalCount = 0
             tracker.reset()
+
             countText.text = "تعداد: 0"
             statusText.text = "شمارش از ابتدا آماده است"
         }
@@ -318,9 +355,12 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-        val aboutButton = createIndustrialButton("درباره برنامه").apply {
-            setOnClickListener { showAbout() }
-        }
+        val aboutButton =
+            createIndustrialButton("درباره برنامه").apply {
+                setOnClickListener {
+                    showAbout()
+                }
+            }
 
         controls.addView(firstRow)
         controls.addView(secondRow)
@@ -364,11 +404,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     // --------------------------------------------------
-    // تنظیمات تصویر راهنما
+    // بارگذاری تصویر راهنما
     // --------------------------------------------------
 
     private fun loadGuideImage() {
+
         try {
+
             guideBitmap = assets.open("guide_overlay.jpg").use { stream ->
                 BitmapFactory.decodeStream(stream)
             }
@@ -381,13 +423,199 @@ class MainActivity : AppCompatActivity() {
 
             guideImage.setImageBitmap(guideBitmap)
             guideImage.alpha = guideOpacity / 255f
-            guideImage.visibility = if (guideVisible) View.VISIBLE else View.GONE
+            guideImage.visibility =
+                if (guideVisible) View.VISIBLE else View.GONE
+
+            guideImage.post {
+                applyGuideTransform()
+            }
+
         } catch (e: Exception) {
+
             guideBitmap = null
             guideImage.visibility = View.GONE
+
             Log.e("SugarCounter", "Could not load guide_overlay.jpg", e)
         }
     }
+
+    // --------------------------------------------------
+    // تنظیم زوم و حرکت تصویر راهنما
+    // --------------------------------------------------
+
+    private fun setupGuideGestures() {
+
+        guideScaleDetector = ScaleGestureDetector(
+            this,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+
+                override fun onScale(
+                    detector: ScaleGestureDetector
+                ): Boolean {
+
+                    val oldScale = guideScale
+
+                    guideScale = (
+                        guideScale * detector.scaleFactor
+                    ).coerceIn(0.3f, 5f)
+
+                    if (oldScale != guideScale) {
+                        guideGestureMoved = true
+                        applyGuideTransform()
+                    }
+
+                    return true
+                }
+            }
+        )
+
+        guideImage.setOnTouchListener { _, event ->
+
+            guideScaleDetector.onTouchEvent(event)
+
+            when (event.actionMasked) {
+
+                MotionEvent.ACTION_DOWN -> {
+
+                    lastTouchX = event.x
+                    lastTouchY = event.y
+
+                    guideGestureMoved = false
+
+                    true
+                }
+
+                MotionEvent.ACTION_POINTER_DOWN -> {
+
+                    guideGestureMoved = true
+                    true
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+
+                    if (
+                        event.pointerCount == 1 &&
+                        !guideScaleDetector.isInProgress
+                    ) {
+
+                        val dx = event.x - lastTouchX
+                        val dy = event.y - lastTouchY
+
+                        if (
+                            kotlin.math.abs(dx) > 0.5f ||
+                            kotlin.math.abs(dy) > 0.5f
+                        ) {
+
+                            guideOffsetX += dx
+                            guideOffsetY += dy
+
+                            guideGestureMoved = true
+
+                            applyGuideTransform()
+                        }
+                    }
+
+                    lastTouchX = event.x
+                    lastTouchY = event.y
+
+                    true
+                }
+
+                MotionEvent.ACTION_POINTER_UP -> {
+                    true
+                }
+
+                MotionEvent.ACTION_UP,
+                MotionEvent.ACTION_CANCEL -> {
+
+                    saveGuideTransform()
+                    true
+                }
+
+                else -> true
+            }
+        }
+    }
+
+    // --------------------------------------------------
+    // اعمال اندازه و موقعیت تصویر راهنما
+    // --------------------------------------------------
+
+    private fun applyGuideTransform() {
+
+        val bitmap = guideBitmap ?: return
+
+        if (
+            guideImage.width <= 0 ||
+            guideImage.height <= 0 ||
+            bitmap.width <= 0 ||
+            bitmap.height <= 0
+        ) {
+            return
+        }
+
+        val viewWidth = guideImage.width.toFloat()
+        val viewHeight = guideImage.height.toFloat()
+
+        // تصویر در ابتدا تمام سطح دوربین را پوشش می‌دهد.
+        val baseScale = maxOf(
+            viewWidth / bitmap.width,
+            viewHeight / bitmap.height
+        )
+
+        val finalScale = baseScale * guideScale
+
+        val scaledWidth = bitmap.width * finalScale
+        val scaledHeight = bitmap.height * finalScale
+
+        val centerX = (viewWidth - scaledWidth) / 2f
+        val centerY = (viewHeight - scaledHeight) / 2f
+
+        guideMatrix.reset()
+
+        guideMatrix.setScale(
+            finalScale,
+            finalScale
+        )
+
+        guideMatrix.postTranslate(
+            centerX + guideOffsetX,
+            centerY + guideOffsetY
+        )
+
+        guideImage.imageMatrix = guideMatrix
+    }
+
+    // --------------------------------------------------
+    // ذخیره تنظیمات تصویر راهنما
+    // --------------------------------------------------
+
+    private fun saveGuideTransform() {
+
+        prefs.edit()
+            .putFloat("guide_scale", guideScale)
+            .putFloat("guide_offset_x", guideOffsetX)
+            .putFloat("guide_offset_y", guideOffsetY)
+            .apply()
+    }
+
+    // --------------------------------------------------
+    // بازنشانی تصویر راهنما
+    // --------------------------------------------------
+
+    private fun resetGuideTransform() {
+
+        guideScale = 1f
+        guideOffsetX = 0f
+        guideOffsetY = 0f
+
+        applyGuideTransform()
+        saveGuideTransform()
+    }
+
+    // --------------------------------------------------
+    // پنجره تنظیمات تصویر راهنما
+    // --------------------------------------------------
 
     private fun showGuideSettings() {
 
@@ -451,9 +679,39 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
+        val resetButton =
+            createIndustrialButton("بازنشانی اندازه و موقعیت").apply {
+                setOnClickListener {
+                    resetGuideTransform()
+                }
+            }
+
+        content.addView(
+            resetButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(52)
+            ).apply {
+                topMargin = dp(12)
+            }
+        )
+
+        val helpText = TextView(this).apply {
+            text = "برای بزرگ‌نمایی از دو انگشت استفاده کنید. برای جابه‌جایی، تصویر را با یک انگشت بکشید."
+            textSize = 12f
+            setTextColor(Color.LTGRAY)
+            gravity = Gravity.CENTER
+            setPadding(dp(4), dp(12), dp(4), dp(4))
+        }
+
+        content.addView(helpText)
+
         guideSwitch.setOnCheckedChangeListener { _, checked ->
+
             guideVisible = checked
-            guideImage.visibility = if (checked) View.VISIBLE else View.GONE
+
+            guideImage.visibility =
+                if (checked) View.VISIBLE else View.GONE
 
             prefs.edit()
                 .putBoolean("guide_visible", checked)
@@ -468,9 +726,9 @@ class MainActivity : AppCompatActivity() {
                     progress: Int,
                     fromUser: Boolean
                 ) {
-                    val opacity = progress * 255 / 100
 
-                    guideOpacity = opacity
+                    guideOpacity = progress * 255 / 100
+
                     guideImage.alpha = guideOpacity / 255f
 
                     opacityLabel.text =
@@ -485,21 +743,21 @@ class MainActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(
                     seekBar: SeekBar?
                 ) {
-                    val opacity =
-                        seekBar?.progress?.times(255)?.div(100) ?: 48
 
                     prefs.edit()
-                        .putInt("guide_opacity", opacity)
+                        .putInt("guide_opacity", guideOpacity)
                         .apply()
                 }
             }
         )
 
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setView(content)
             .setPositiveButton("ذخیره و بستن", null)
             .setNegativeButton("بستن", null)
-            .show()
+            .create()
+
+        dialog.show()
     }
 
     // --------------------------------------------------
@@ -534,6 +792,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 try {
+
                     val bitmap = ImageUtil.toBitmap(image)
                     val detections = detector.detect(bitmap)
 
@@ -559,13 +818,16 @@ class MainActivity : AppCompatActivity() {
                             )
 
                             if (trackingResult.newCounts > 0) {
+
                                 totalCount += trackingResult.newCounts
+
                                 countText.text = "تعداد: $totalCount"
                             }
                         }
                     }
 
                 } catch (e: Exception) {
+
                     Log.e("SugarCounter", "Detection error", e)
 
                     runOnUiThread {
@@ -578,6 +840,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             try {
+
                 provider.unbindAll()
 
                 provider.bindToLifecycle(
@@ -588,6 +851,7 @@ class MainActivity : AppCompatActivity() {
                 )
 
             } catch (e: Exception) {
+
                 statusText.text =
                     "خطای دوربین: ${e.localizedMessage}"
             }
@@ -643,17 +907,20 @@ class MainActivity : AppCompatActivity() {
         val history = getHistory()
 
         if (history.length() == 0) {
+
             AlertDialog.Builder(this)
                 .setTitle("تاریخچه شمارش")
                 .setMessage("هنوز سابقه‌ای ثبت نشده است.")
                 .setPositiveButton("باشه", null)
                 .show()
+
             return
         }
 
         val items = ArrayList<String>()
 
         for (i in history.length() - 1 downTo 0) {
+
             val item = history.getJSONObject(i)
 
             items.add(
@@ -670,11 +937,13 @@ class MainActivity : AppCompatActivity() {
             .setMessage(text)
             .setPositiveButton("بستن", null)
             .setNeutralButton("پاک کردن تاریخچه") { _, _ ->
+
                 AlertDialog.Builder(this)
                     .setTitle("حذف تاریخچه")
                     .setMessage("آیا از حذف تمام سوابق مطمئن هستید؟")
                     .setNegativeButton("انصراف", null)
                     .setPositiveButton("حذف") { _, _ ->
+
                         prefs.edit()
                             .putString("records", "[]")
                             .apply()
@@ -725,6 +994,7 @@ class MainActivity : AppCompatActivity() {
         for (i in 0 until history.length()) {
 
             val item = history.getJSONObject(i)
+
             val count = item.optInt("count")
             val timestamp = item.optLong("timestamp")
 
@@ -771,10 +1041,12 @@ class MainActivity : AppCompatActivity() {
         val history = getHistory()
 
         if (history.length() == 0) {
+
             AlertDialog.Builder(this)
                 .setMessage("برای ساخت گزارش، ابتدا باید سابقه شمارش داشته باشید.")
                 .setPositiveButton("باشه", null)
                 .show()
+
             return
         }
 
@@ -790,6 +1062,7 @@ class MainActivity : AppCompatActivity() {
         val data = pendingExcelData ?: return
 
         try {
+
             contentResolver.openOutputStream(uri)?.use { output ->
                 output.write(data)
                 output.flush()
@@ -801,12 +1074,14 @@ class MainActivity : AppCompatActivity() {
                 .show()
 
         } catch (e: Exception) {
+
             Log.e("SugarCounter", "Excel save error", e)
 
             AlertDialog.Builder(this)
                 .setMessage("خطا در ذخیره فایل: ${e.localizedMessage}")
                 .setPositiveButton("باشه", null)
                 .show()
+
         } finally {
             pendingExcelData = null
         }
@@ -818,16 +1093,20 @@ class MainActivity : AppCompatActivity() {
         val zip = ZipOutputStream(output)
 
         fun addEntry(name: String, content: String) {
+
             zip.putNextEntry(ZipEntry(name))
             zip.write(content.toByteArray(Charsets.UTF_8))
             zip.closeEntry()
         }
 
         val total = run {
+
             var sum = 0
+
             for (i in 0 until history.length()) {
                 sum += history.getJSONObject(i).optInt("count")
             }
+
             sum
         }
 
@@ -898,6 +1177,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun xmlEscape(value: String): String {
+
         return value
             .replace("&", "&amp;")
             .replace("<", "&lt;")
@@ -1048,6 +1328,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         members.forEach { member ->
+
             content.addView(
                 createAboutMemberCard(
                     member.first,
@@ -1086,6 +1367,7 @@ class MainActivity : AppCompatActivity() {
             .create()
 
         dialog.setOnShowListener {
+
             dialog.window?.setBackgroundDrawable(
                 ColorDrawable(white)
             )
@@ -1262,6 +1544,7 @@ class MainActivity : AppCompatActivity() {
     ) {
 
         val text = TextView(this).apply {
+
             this.text = value
             textSize = size
 
@@ -1297,6 +1580,7 @@ class MainActivity : AppCompatActivity() {
     // --------------------------------------------------
 
     private fun getCurrentTime(): String {
+
         return SimpleDateFormat(
             "HH:mm:ss",
             Locale.US
@@ -1338,6 +1622,7 @@ class MainActivity : AppCompatActivity() {
         val gd = gdInput
 
         var jy: Int
+
         val gy2 = if (gm > 2) gy + 1 else gy
 
         var days = 355666 +
@@ -1349,9 +1634,11 @@ class MainActivity : AppCompatActivity() {
             gDays[gm - 1]
 
         jy = -1595 + 33 * (days / 12053)
+
         days %= 12053
 
         jy += 4 * (days / 1461)
+
         days %= 1461
 
         if (days > 365) {
@@ -1363,9 +1650,12 @@ class MainActivity : AppCompatActivity() {
         val jd: Int
 
         if (days < 186) {
+
             jm = 1 + days / 31
             jd = 1 + days % 31
+
         } else {
+
             jm = 7 + (days - 186) / 30
             jd = 1 + (days - 186) % 30
         }
@@ -1374,15 +1664,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     // --------------------------------------------------
-    // ابزارهای عمومی
+    // پایان فعالیت
     // --------------------------------------------------
 
-    private fun dp(value: Int): Int {
-        return (value * resources.displayMetrics.density).toInt()
-    }
-
     override fun onDestroy() {
+
+        saveGuideTransform()
+
         super.onDestroy()
+
         executor.shutdown()
         detector.close()
 
