@@ -18,335 +18,265 @@ data class TrackingUpdate(
 
 class SimpleLineCounter {
 
-    companion object {
-        private const val MAX_MISSED_FRAMES = 12
-        private const val MAX_DISPLAY_MISSED_FRAMES = 8
-
-        private const val MIN_GATE_DISTANCE = 100f
-        private const val GATE_FACTOR = 1.8f
-        private const val VERTICAL_GATE_FACTOR = 1.5f
-
-        private const val POSITION_SMOOTHING = 0.65f
-        private const val VELOCITY_SMOOTHING = 0.55f
-        private const val MAX_VELOCITY = 120f
-
-        private const val CROSSING_MARGIN = 3f
-        private const val MIN_TRACK_HITS = 2
-        private const val MIN_CONFIDENCE = 0.20f
-    }
-
     private data class Track(
         val id: Int,
-
         var detection: Detection,
-
-        var smoothCx: Float,
-        var smoothCy: Float,
-
-        var smoothWidth: Float,
-        var smoothHeight: Float,
-
+        var cx: Float,
+        var cy: Float,
         var vx: Float = 0f,
         var vy: Float = 0f,
-
+        var width: Float = 0f,
+        var height: Float = 0f,
         var missed: Int = 0,
         var hits: Int = 1,
         var age: Int = 1,
-
         var armed: Boolean = false,
-        var counted: Boolean = false,
-
-        var previousTop: Float = 0f,
-        var previousBottom: Float = 0f,
-
-        var confidence: Float = 0f
-    )
-
-    private data class Match(
-        val trackId: Int,
-        val detectionIndex: Int,
-        val cost: Float
+        var counted: Boolean = false
     )
 
     private val tracks = mutableMapOf<Int, Track>()
 
     private var nextId = 1
 
-    private var topLine = 150f
-    private var bottomLine = 411f
+    // خط شمارش
+    var topLine = 150f
+        private set
 
+    // خط محدوده
+    var bottomLine = 411f
+        private set
+
+    companion object {
+
+        private const val MAX_MISSED_FRAMES = 12
+
+        private const val MAX_DISPLAY_MISSED_FRAMES = 8
+
+        private const val MIN_GATE_DISTANCE = 100f
+
+        private const val GATE_FACTOR = 1.8f
+
+        private const val POSITION_SMOOTHING = 0.65f
+
+        private const val VELOCITY_SMOOTHING = 0.55f
+
+        private const val MAX_VELOCITY = 120f
+
+        private const val MIN_TRACK_HITS = 2
+
+        private const val MIN_CONFIDENCE = 0.20f
+
+        private const val MIN_IOU_FOR_MATCH = 0.05f
+
+        private const val COUNT_LINE_TOLERANCE = 1f
+    }
+
+    /**
+     * تنظیم خطوط
+     */
     fun setLines(top: Float, bottom: Float) {
         topLine = min(top, bottom)
         bottomLine = max(top, bottom)
     }
 
+    /**
+     * پاک کردن Tracking و شروع شمارش جدید
+     */
     fun reset() {
         tracks.clear()
         nextId = 1
     }
 
-    fun update(detections: List<Detection>): Int {
-        return updateWithTracks(detections).newCounts
-    }
-
+    /**
+     * پردازش فریم جدید
+     */
     fun updateWithTracks(
         detections: List<Detection>
     ): TrackingUpdate {
 
         var newCounts = 0
 
-        val visibleTracks = mutableListOf<TrackedDetection>()
+        // حذف تشخیص‌های ضعیف
+        val validDetections = detections.filter {
+            it.confidence >= MIN_CONFIDENCE &&
+                    it.right > it.left &&
+                    it.bottom > it.top
+        }
 
-        // افزایش تعداد فریم‌های ازدست‌رفته
-        for (track in tracks.values) {
-            track.missed++
-            track.age++
+        // به‌روزرسانی سن Trackها
+        tracks.values.forEach {
+            it.age++
+            it.missed++
         }
 
         // پیش‌بینی موقعیت Trackها
-        val predictions = mutableMapOf<Int, Detection>()
+        val predictions = tracks.values.map { track ->
+            val predictedX = track.cx + track.vx
+            val predictedY = track.cy + track.vy
 
-        for (track in tracks.values) {
-            predictions[track.id] = predictDetection(track)
+            Pair(track, Pair(predictedX, predictedY))
         }
 
-        // ایجاد کاندیدهای تطبیق
-        val candidates = mutableListOf<Match>()
+        // ایجاد کاندیدهای اتصال
+        data class MatchCandidate(
+            val trackId: Int,
+            val detectionIndex: Int,
+            val score: Float
+        )
 
-        for (track in tracks.values) {
+        val candidates = mutableListOf<MatchCandidate>()
 
-            if (track.missed > MAX_MISSED_FRAMES) {
-                continue
-            }
+        for ((track, prediction) in predictions) {
 
-            val predicted = predictions[track.id] ?: continue
+            val predictedX = prediction.first
+            val predictedY = prediction.second
 
-            for (index in detections.indices) {
+            for (index in validDetections.indices) {
 
-                val detection = detections[index]
+                val detection = validDetections[index]
 
-                if (detection.confidence < MIN_CONFIDENCE) {
-                    continue
-                }
+                val distance = distance(
+                    predictedX,
+                    predictedY,
+                    detection.cx,
+                    detection.cy
+                )
 
-                val cost = calculateCost(
-                    predicted,
+                val predictedWidth = max(track.width, 1f)
+                val predictedHeight = max(track.height, 1f)
+
+                val detectionWidth =
+                    max(detection.right - detection.left, 1f)
+
+                val detectionHeight =
+                    max(detection.bottom - detection.top, 1f)
+
+                val averageSize =
+                    (predictedWidth + predictedHeight +
+                            detectionWidth + detectionHeight) / 4f
+
+                val gateDistance = max(
+                    MIN_GATE_DISTANCE,
+                    averageSize * GATE_FACTOR
+                )
+
+                val iou = calculateIoU(
+                    track.detection,
                     detection
                 )
 
-                if (cost >= 0f) {
-                    candidates.add(
-                        Match(
-                            trackId = track.id,
-                            detectionIndex = index,
-                            cost = cost
-                        )
-                    )
+                // تشخیص‌های خیلی دور حذف می‌شوند
+                if (distance > gateDistance && iou < MIN_IOU_FOR_MATCH) {
+                    continue
                 }
+
+                // امتیاز کمتر یعنی تطبیق بهتر
+                val normalizedDistance =
+                    distance / gateDistance
+
+                val score =
+                    normalizedDistance - (iou * 0.5f)
+
+                candidates.add(
+                    MatchCandidate(
+                        track.id,
+                        index,
+                        score
+                    )
+                )
             }
         }
 
-        // تطبیق بر اساس کمترین هزینه
-        val usedTracks = mutableSetOf<Int>()
-        val usedDetections = mutableSetOf<Int>()
+        // بهترین تطبیق‌ها اول انتخاب می‌شوند
+        candidates.sortBy { it.score }
 
-        for (match in candidates.sortedBy { it.cost }) {
+        val matchedTrackIds = mutableSetOf<Int>()
+        val matchedDetectionIndices = mutableSetOf<Int>()
 
-            if (match.trackId in usedTracks) {
-                continue
-            }
+        for (candidate in candidates) {
 
-            if (match.detectionIndex in usedDetections) {
-                continue
-            }
+            if (candidate.trackId in matchedTrackIds) continue
 
-            val track = tracks[match.trackId] ?: continue
+            if (candidate.detectionIndex in matchedDetectionIndices) continue
 
-            val detection = detections[match.detectionIndex]
+            val track = tracks[candidate.trackId] ?: continue
 
-            usedTracks.add(match.trackId)
-            usedDetections.add(match.detectionIndex)
+            val detection =
+                validDetections[candidate.detectionIndex]
 
-            // محاسبه سرعت
-            val measuredVx = detection.cx - track.smoothCx
-            val measuredVy = detection.cy - track.smoothCy
+            matchedTrackIds.add(candidate.trackId)
 
-            val limitedVx = measuredVx.coerceIn(
-                -MAX_VELOCITY,
-                MAX_VELOCITY
-            )
+            matchedDetectionIndices.add(candidate.detectionIndex)
 
-            val limitedVy = measuredVy.coerceIn(
-                -MAX_VELOCITY,
-                MAX_VELOCITY
-            )
+            updateTrack(track, detection)
 
-            track.vx =
-                track.vx * (1f - VELOCITY_SMOOTHING) +
-                        limitedVx * VELOCITY_SMOOTHING
-
-            track.vy =
-                track.vy * (1f - VELOCITY_SMOOTHING) +
-                        limitedVy * VELOCITY_SMOOTHING
-
-            // موقعیت قبلی کادر واقعی
-            val oldTop = track.previousTop
-            val oldBottom = track.previousBottom
-
-            // هموارسازی مرکز
-            track.smoothCx =
-                track.smoothCx * (1f - POSITION_SMOOTHING) +
-                        detection.cx * POSITION_SMOOTHING
-
-            track.smoothCy =
-                track.smoothCy * (1f - POSITION_SMOOTHING) +
-                        detection.cy * POSITION_SMOOTHING
-
-            // هموارسازی ابعاد
-            val detectedWidth =
-                detection.right - detection.left
-
-            val detectedHeight =
-                detection.bottom - detection.top
-
-            track.smoothWidth =
-                track.smoothWidth * (1f - POSITION_SMOOTHING) +
-                        detectedWidth * POSITION_SMOOTHING
-
-            track.smoothHeight =
-                track.smoothHeight * (1f - POSITION_SMOOTHING) +
-                        detectedHeight * POSITION_SMOOTHING
-
-            track.detection = detection
-
-            track.missed = 0
-            track.hits++
-
-            track.confidence = detection.confidence
-
-            // بررسی ورود کادر به منطقه بین خطوط
-            if (boxIntersectsCountingZone(detection)) {
+            // آماده شدن Track برای شمارش
+            if (isInsideCountingZone(track.detection)) {
                 track.armed = true
             }
 
-            // شمارش هنگام عبور لبه بالایی کادر از خط بالایی
+            // شمارش لحظه برخورد با خط
             if (
                 track.armed &&
                 !track.counted &&
                 track.hits >= MIN_TRACK_HITS &&
-                crossedTopLine(
-                    previousTop = oldTop,
-                    currentTop = detection.top
-                )
+                touchesCountingLine(track.detection)
             ) {
                 track.counted = true
                 newCounts++
             }
-
-            // ذخیره موقعیت واقعی برای فریم بعد
-            track.previousTop = detection.top
-            track.previousBottom = detection.bottom
-
-            visibleTracks.add(
-                TrackedDetection(
-                    id = track.id,
-                    detection = createSmoothedDetection(track),
-                    isPredicted = false
-                )
-            )
         }
 
-        // ایجاد Track جدید برای تشخیص‌های تطبیق‌نیافته
-        for (index in detections.indices) {
+        // ایجاد Track جدید برای تشخیص‌های بدون تطبیق
+        for (index in validDetections.indices) {
 
-            if (index in usedDetections) {
-                continue
+            if (index in matchedDetectionIndices) continue
+
+            val detection = validDetections[index]
+
+            val track = createTrack(detection)
+
+            tracks[track.id] = track
+
+            // اگر Track جدید معتبر باشد و با خط تماس داشته باشد
+            if (
+                track.armed &&
+                track.hits >= MIN_TRACK_HITS &&
+                touchesCountingLine(track.detection)
+            ) {
+                track.counted = true
+                newCounts++
             }
-
-            val detection = detections[index]
-
-            if (detection.confidence < MIN_CONFIDENCE) {
-                continue
-            }
-
-            val id = nextId++
-
-            val width = detection.right - detection.left
-            val height = detection.bottom - detection.top
-
-            val track = Track(
-                id = id,
-                detection = detection,
-
-                smoothCx = detection.cx,
-                smoothCy = detection.cy,
-
-                smoothWidth = width,
-                smoothHeight = height,
-
-                vx = 0f,
-                vy = 0f,
-
-                missed = 0,
-                hits = 1,
-                age = 1,
-
-                armed = boxIntersectsCountingZone(detection),
-                counted = false,
-
-                previousTop = detection.top,
-                previousBottom = detection.bottom,
-
-                confidence = detection.confidence
-            )
-
-            tracks[id] = track
-
-            visibleTracks.add(
-                TrackedDetection(
-                    id = id,
-                    detection = createSmoothedDetection(track),
-                    isPredicted = false
-                )
-            )
         }
 
-        // نمایش موقت Trackهای گم‌شده
-        for (track in tracks.values) {
-
-            if (track.id in usedTracks) {
-                continue
-            }
-
-            if (track.missed == 0) {
-                continue
-            }
-
-            if (track.missed > MAX_DISPLAY_MISSED_FRAMES) {
-                continue
-            }
-
-            visibleTracks.add(
-                TrackedDetection(
-                    id = track.id,
-                    detection = predictDetection(track),
-                    isPredicted = true
-                )
-            )
-        }
-
-        // حذف Trackهای منقضی‌شده
+        // حذف Trackهای قدیمی
         val expiredIds = tracks.values
-            .filter {
-                it.missed > MAX_MISSED_FRAMES
-            }
-            .map {
-                it.id
-            }
+            .filter { it.missed > MAX_MISSED_FRAMES }
+            .map { it.id }
 
-        for (id in expiredIds) {
-            tracks.remove(id)
+        expiredIds.forEach {
+            tracks.remove(it)
         }
+
+        // آماده‌سازی خروجی برای نمایش
+        val visibleTracks = tracks.values
+            .filter {
+                it.missed <= MAX_DISPLAY_MISSED_FRAMES
+            }
+            .map { track ->
+
+                val displayDetection = if (track.missed > 0) {
+                    predictedDetection(track)
+                } else {
+                    track.detection
+                }
+
+                TrackedDetection(
+                    id = track.id,
+                    detection = displayDetection,
+                    isPredicted = track.missed > 0
+                )
+            }
 
         return TrackingUpdate(
             newCounts = newCounts,
@@ -355,174 +285,161 @@ class SimpleLineCounter {
     }
 
     /**
-     * بررسی برخورد کادر کیسه با محدوده شمارش
+     * ایجاد Track جدید
      */
-    private fun boxIntersectsCountingZone(
+    private fun createTrack(
+        detection: Detection
+    ): Track {
+
+        val width = detection.right - detection.left
+        val height = detection.bottom - detection.top
+
+        val track = Track(
+            id = nextId++,
+            detection = detection,
+            cx = detection.cx,
+            cy = detection.cy,
+            width = width,
+            height = height
+        )
+
+        track.armed = isInsideCountingZone(detection)
+
+        return track
+    }
+
+    /**
+     * به‌روزرسانی Track
+     */
+    private fun updateTrack(
+        track: Track,
+        detection: Detection
+    ) {
+
+        val oldCx = track.cx
+        val oldCy = track.cy
+
+        val newCx = detection.cx
+        val newCy = detection.cy
+
+        val measuredVx = newCx - oldCx
+        val measuredVy = newCy - oldCy
+
+        track.vx = (
+                track.vx * VELOCITY_SMOOTHING +
+                        measuredVx * (1f - VELOCITY_SMOOTHING)
+                ).coerceIn(-MAX_VELOCITY, MAX_VELOCITY)
+
+        track.vy = (
+                track.vy * VELOCITY_SMOOTHING +
+                        measuredVy * (1f - VELOCITY_SMOOTHING)
+                ).coerceIn(-MAX_VELOCITY, MAX_VELOCITY)
+
+        track.cx =
+            oldCx * POSITION_SMOOTHING +
+                    newCx * (1f - POSITION_SMOOTHING)
+
+        track.cy =
+            oldCy * POSITION_SMOOTHING +
+                    newCy * (1f - POSITION_SMOOTHING)
+
+        val newWidth = detection.right - detection.left
+        val newHeight = detection.bottom - detection.top
+
+        track.width =
+            track.width * POSITION_SMOOTHING +
+                    newWidth * (1f - POSITION_SMOOTHING)
+
+        track.height =
+            track.height * POSITION_SMOOTHING +
+                    newHeight * (1f - POSITION_SMOOTHING)
+
+        track.detection = detection
+
+        track.missed = 0
+        track.hits++
+
+        if (isInsideCountingZone(detection)) {
+            track.armed = true
+        }
+    }
+
+    /**
+     * آیا باکس در محدوده بین خطوط قرار دارد؟
+     */
+    private fun isInsideCountingZone(
         detection: Detection
     ): Boolean {
 
-        return detection.bottom > topLine &&
-                detection.top < bottomLine
+        return detection.bottom >= topLine &&
+                detection.top <= bottomLine
     }
 
     /**
-     * پیش‌بینی موقعیت Track در فریم ازدست‌رفته
+     * بررسی تماس با خط شمارش
+     *
+     * شمارش با برخورد باکس با خط انجام می‌شود،
+     * نه بعد از عبور کامل آن.
      */
-    private fun predictDetection(
-        track: Track
-    ): Detection {
-
-        val predictedCx =
-            track.smoothCx + track.vx * track.missed
-
-        val predictedCy =
-            track.smoothCy + track.vy * track.missed
-
-        val width = track.smoothWidth
-        val height = track.smoothHeight
-
-        val confidence =
-            (track.confidence *
-                    Math.pow(
-                        0.88,
-                        track.missed.toDouble()
-                    ).toFloat())
-                .coerceAtLeast(0.05f)
-
-        return Detection(
-            left = predictedCx - width / 2f,
-            top = predictedCy - height / 2f,
-            right = predictedCx + width / 2f,
-            bottom = predictedCy + height / 2f,
-            confidence = confidence
-        )
-    }
-
-    /**
-     * ساخت کادر هموارشده برای نمایش
-     */
-    private fun createSmoothedDetection(
-        track: Track
-    ): Detection {
-
-        val halfWidth = track.smoothWidth / 2f
-        val halfHeight = track.smoothHeight / 2f
-
-        return Detection(
-            left = track.smoothCx - halfWidth,
-            top = track.smoothCy - halfHeight,
-            right = track.smoothCx + halfWidth,
-            bottom = track.smoothCy + halfHeight,
-            confidence = track.confidence
-        )
-    }
-
-    /**
-     * محاسبه هزینه تطبیق
-     */
-    private fun calculateCost(
-        predicted: Detection,
+    private fun touchesCountingLine(
         detection: Detection
+    ): Boolean {
+
+        return detection.top <= topLine + COUNT_LINE_TOLERANCE &&
+                detection.bottom >= topLine - COUNT_LINE_TOLERANCE
+    }
+
+    /**
+     * پیش‌بینی موقعیت Track گم‌شده
+     */
+    private fun predictedDetection(
+        track: Track
+    ): Detection {
+
+        val predictedCx = track.cx + track.vx * track.missed
+        val predictedCy = track.cy + track.vy * track.missed
+
+        val halfWidth = track.width / 2f
+        val halfHeight = track.height / 2f
+
+        return Detection(
+            left = predictedCx - halfWidth,
+            top = predictedCy - halfHeight,
+            right = predictedCx + halfWidth,
+            bottom = predictedCy + halfHeight,
+            confidence = track.detection.confidence
+        )
+    }
+
+    /**
+     * فاصله دو نقطه
+     */
+    private fun distance(
+        x1: Float,
+        y1: Float,
+        x2: Float,
+        y2: Float
     ): Float {
 
-        val dx = abs(predicted.cx - detection.cx)
-        val dy = abs(predicted.cy - detection.cy)
+        val dx = x2 - x1
+        val dy = y2 - y1
 
-        val predictedSize = max(
-            predicted.right - predicted.left,
-            predicted.bottom - predicted.top
-        )
-
-        val detectionSize = max(
-            detection.right - detection.left,
-            detection.bottom - detection.top
-        )
-
-        val gate = max(
-            MIN_GATE_DISTANCE,
-            max(predictedSize, detectionSize) * GATE_FACTOR
-        )
-
-        if (dx > gate) {
-            return -1f
-        }
-
-        if (dy > gate * VERTICAL_GATE_FACTOR) {
-            return -1f
-        }
-
-        val distance = sqrt(dx * dx + dy * dy)
-
-        val overlap = iou(predicted, detection)
-
-        if (
-            overlap < 0.01f &&
-            distance > gate * 0.70f
-        ) {
-            return -1f
-        }
-
-        val sizeDifference =
-            abs(predictedSize - detectionSize) /
-                    max(predictedSize, detectionSize)
-                        .coerceAtLeast(1f)
-
-        val distanceCost = distance / gate
-
-        val overlapCost = 1f - overlap
-
-        val sizeCost = sizeDifference.coerceIn(
-            0f,
-            1f
-        )
-
-        return (
-                distanceCost * 0.50f +
-                        overlapCost * 0.35f +
-                        sizeCost * 0.15f
-                )
+        return sqrt(dx * dx + dy * dy)
     }
 
     /**
-     * تشخیص عبور لبه بالایی کادر از خط بالایی
-     *
-     * جهت شمارش:
-     * از پایین تصویر به بالای تصویر
+     * محاسبه IoU بین دو باکس
      */
-    private fun crossedTopLine(
-        previousTop: Float,
-        currentTop: Float
-    ): Boolean {
-
-        val upperBoundary =
-            topLine - CROSSING_MARGIN
-
-        val lowerBoundary =
-            topLine + CROSSING_MARGIN
-
-        return previousTop > lowerBoundary &&
-                currentTop <= upperBoundary
-    }
-
-    /**
-     * محاسبه IoU
-     */
-    private fun iou(
+    private fun calculateIoU(
         a: Detection,
         b: Detection
     ): Float {
 
-        val intersectionLeft =
-            max(a.left, b.left)
+        val intersectionLeft = max(a.left, b.left)
+        val intersectionTop = max(a.top, b.top)
 
-        val intersectionTop =
-            max(a.top, b.top)
-
-        val intersectionRight =
-            min(a.right, b.right)
-
-        val intersectionBottom =
-            min(a.bottom, b.bottom)
+        val intersectionRight = min(a.right, b.right)
+        val intersectionBottom = min(a.bottom, b.bottom)
 
         val intersectionWidth =
             max(0f, intersectionRight - intersectionLeft)
@@ -541,15 +458,10 @@ class SimpleLineCounter {
             max(0f, b.right - b.left) *
                     max(0f, b.bottom - b.top)
 
-        val unionArea =
-            areaA + areaB - intersectionArea
+        val unionArea = areaA + areaB - intersectionArea
 
-        if (unionArea <= 0f) {
-            return 0f
-        }
+        if (unionArea <= 0f) return 0f
 
-        return (
-                intersectionArea / unionArea
-                ).coerceIn(0f, 1f)
+        return intersectionArea / unionArea
     }
 }
