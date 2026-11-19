@@ -3,10 +3,12 @@
 
     <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
 
-        <!-- Main Colors -->
+        <!-- Primary Colors -->
         <item name="colorPrimary">#245A45</item>
         <item name="colorPrimaryVariant">#173D30</item>
         <item name="colorSecondary">#E6A23C</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorOnSecondary">#101714</item>
 
         <!-- Background -->
         <item name="android:windowBackground">#101714</item>
@@ -17,6 +19,7 @@
 
         <!-- Navigation Bar -->
         <item name="android:navigationBarColor">#142B23</item>
+        <item name="android:windowLightNavigationBar">false</item>
 
         <!-- Font -->
         <item name="android:fontFamily">sans</item>
@@ -24,6 +27,8 @@
         <!-- UI -->
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowSoftInputMode">adjustResize</item>
 
     </style>
 
