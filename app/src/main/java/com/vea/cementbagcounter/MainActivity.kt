@@ -147,8 +147,10 @@ class SimpleLineCounter {
                     averageSize * GATE_FACTOR
                 )
 
+                val predictedBox = predictedDetectionOneFrame(track)
+
                 val iou = calculateIoU(
-                    track.detection,
+                    predictedBox,
                     detection
                 )
 
@@ -382,6 +384,28 @@ class SimpleLineCounter {
 
         return detection.top <= topLine + COUNT_LINE_TOLERANCE &&
                 detection.bottom >= topLine - COUNT_LINE_TOLERANCE
+    }
+
+    private fun predictedDetectionOneFrame(
+        track: Track
+    ): Detection {
+
+        val predictedCx =
+            track.cx + track.vx
+
+        val predictedCy =
+            track.cy + track.vy
+
+        val halfWidth = track.width / 2f
+        val halfHeight = track.height / 2f
+
+        return Detection(
+            left = predictedCx - halfWidth,
+            top = predictedCy - halfHeight,
+            right = predictedCx + halfWidth,
+            bottom = predictedCy + halfHeight,
+            confidence = track.detection.confidence
+        )
     }
 
     private fun predictedDetection(
