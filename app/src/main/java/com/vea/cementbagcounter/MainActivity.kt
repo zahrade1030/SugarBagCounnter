@@ -231,15 +231,23 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
-        // اندازه تصویر راهنما کمی بزرگ‌تر شده است.
-        cameraFrame.post {
-            if (cameraFrame.width > 0 && cameraFrame.height > 0) {
+        cameraFrame.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+
+            val width = right - left
+            val height = bottom - top
+
+            if (width > 0 && height > 0) {
+
+                val guideWidth = (width * 0.88f).toInt()
+                val guideHeight = (height * 0.82f).toInt()
 
                 guideImage.layoutParams = FrameLayout.LayoutParams(
-                    (cameraFrame.width * 0.78f).toInt(),
-                    (cameraFrame.height * 0.66f).toInt(),
+                    guideWidth,
+                    guideHeight,
                     Gravity.CENTER
                 )
+
+                guideImage.requestLayout()
             }
         }
 
@@ -554,7 +562,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         val helpText = TextView(this).apply {
-            text = "اندازه و موقعیت تصویر راهنما ثابت است و فقط شفافیت آن قابل تنظیم است."
+            text = "تصویر راهنما به صورت خودکار متناسب با صفحه دوربین تنظیم می‌شود."
             textSize = 12f
             setTextColor(Color.LTGRAY)
             gravity = Gravity.CENTER
@@ -1079,17 +1087,14 @@ class MainActivity : AppCompatActivity() {
 
             val rows = StringBuilder()
 
-            // عنوان گزارش
             rows.append(
                 """<row r="1"><c r="A1" t="inlineStr"><is><t>گزارش شمارش کیسه‌های قند</t></is></c></row>"""
             )
 
-            // عنوان ستون‌ها
             rows.append(
                 """<row r="2"><c r="A2" t="inlineStr"><is><t>ردیف</t></is></c><c r="B2" t="inlineStr"><is><t>تاریخ شمسی</t></is></c><c r="C2" t="inlineStr"><is><t>ساعت</t></is></c><c r="D2" t="inlineStr"><is><t>تعداد کیسه</t></is></c></row>"""
             )
 
-            // داده‌های تاریخچه
             for (i in 0 until history.length()) {
 
                 val item = history.getJSONObject(i)
@@ -1105,36 +1110,30 @@ class MainActivity : AppCompatActivity() {
                 )
             }
 
-            // ردیف مجموع
             rows.append(
                 """<row r="$totalRow"><c r="C$totalRow" t="inlineStr"><is><t>مجموع کل</t></is></c><c r="D$totalRow" t="n"><v>$total</v></c></row>"""
             )
 
-            // Content Types
             addEntry(
                 "[Content_Types].xml",
                 """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>"""
             )
 
-            // رابطه اصلی فایل
             addEntry(
                 "_rels/.rels",
                 """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>"""
             )
 
-            // Workbook
             addEntry(
                 "xl/workbook.xml",
                 """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets><sheet name="گزارش شمارش" sheetId="1" r:id="rId1"/></sheets></workbook>"""
             )
 
-            // رابطه Worksheet
             addEntry(
                 "xl/_rels/workbook.xml.rels",
                 """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>"""
             )
 
-            // Worksheet
             addEntry(
                 "xl/worksheets/sheet1.xml",
                 """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:$lastColumn$totalRow"/><sheetViews><sheetView workbookViewId="0" rightToLeft="1"/></sheetViews><sheetFormatPr defaultRowHeight="20"/><cols><col min="1" max="1" width="12" customWidth="1"/><col min="2" max="2" width="22" customWidth="1"/><col min="3" max="3" width="18" customWidth="1"/><col min="4" max="4" width="20" customWidth="1"/></cols><sheetData>$rows</sheetData></worksheet>"""
@@ -1144,9 +1143,6 @@ class MainActivity : AppCompatActivity() {
         return output.toByteArray()
     }
 
-    /**
-     * پاکسازی و Escape کردن متن برای XML.
-     */
     private fun xmlEscape(value: String): String {
 
         val validXml = buildString {
