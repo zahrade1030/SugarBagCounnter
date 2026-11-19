@@ -64,9 +64,11 @@ class MainActivity : AppCompatActivity() {
 
     private val executor = Executors.newSingleThreadExecutor()
 
-    private var running = false
+    private var running = true
     private var setupMode = true
     private var totalCount = 0
+
+    private var sessionSaved = false
 
     private val tracker = SimpleLineCounter()
 
@@ -112,6 +114,10 @@ class MainActivity : AppCompatActivity() {
         buildUi()
 
         restoreLineSettings()
+
+        running = true
+        setupMode = true
+        overlay.isSetup = true
 
         if (
             ContextCompat.checkSelfPermission(
@@ -231,7 +237,8 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
-        cameraFrame.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+        cameraFrame.addOnLayoutChangeListener {
+                _, left, top, right, bottom, _, _, _, _ ->
 
             val width = right - left
             val height = bottom - top
@@ -397,14 +404,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun enterSetupMode() {
 
+        if (totalCount > 0 && !sessionSaved) {
+            saveCurrentSession()
+            sessionSaved = true
+        }
+
         running = true
         setupMode = true
         overlay.isSetup = true
 
-        statusText.text =
-            "خطوط افقی و محدوده شمارش را تنظیم کنید"
+        tracker.reset()
 
         restoreLineSettings()
+
+        statusText.text =
+            "خطوط افقی و محدوده شمارش را تنظیم کنید"
     }
 
     private fun startCounting() {
@@ -426,6 +440,8 @@ class MainActivity : AppCompatActivity() {
         setupMode = false
         overlay.isSetup = false
         running = true
+
+        sessionSaved = false
 
         statusText.text = "شمارش فعال است"
     }
@@ -759,12 +775,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopCounting() {
 
+        if (!running) {
+            statusText.text = "شمارش قبلاً متوقف شده است"
+            return
+        }
+
         running = false
 
         saveLineSettings()
 
-        if (totalCount > 0) {
+        if (totalCount > 0 && !sessionSaved) {
             saveCurrentSession()
+            sessionSaved = true
         }
 
         statusText.text = "شمارش متوقف شد"
@@ -788,6 +810,7 @@ class MainActivity : AppCompatActivity() {
 
                 countText.text = "تعداد: 0"
 
+                sessionSaved = false
                 running = true
 
                 statusText.text =
@@ -1049,12 +1072,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * ساخت XLSX با ساختار ساده و استاندارد Office Open XML.
-     *
-     * در این نسخه از Styles و SharedStrings استفاده نمی‌شود.
-     * تمام رشته‌ها به صورت Inline String نوشته می‌شوند.
-     */
     private fun createExcelFile(history: JSONArray): ByteArray {
 
         val output = ByteArrayOutputStream()
