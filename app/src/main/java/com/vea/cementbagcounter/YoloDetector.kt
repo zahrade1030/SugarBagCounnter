@@ -37,141 +37,191 @@ class YoloDetector(context: Context) {
             it.readBytes()
         }
 
-        session = env.createSession(model)
+        val options = OrtSession.SessionOptions().apply {
+            setOptimizationLevel(
+                OrtSession.SessionOptions.OptLevel.ALL_OPT
+            )
+            setIntraOpNumThreads(2)
+            setInterOpNumThreads(1)
+        }
+
+        session = env.createSession(model, options)
+        options.close()
+
         inputName = session.inputNames.first()
     }
 
-    /**
-     * اجرای تشخیص روی تصویر
-     */
     fun detect(source: Bitmap): List<Detection> {
 
-        if (source.isRecycled) {
+        if (source.isRecycled ||
+            source.width <= 0 ||
+            source.height <= 0
+        ) {
             return emptyList()
         }
 
-        val resized = Bitmap.createScaledBitmap(
-            source,
-            inputSize,
-            inputSize,
-            true
-        )
+        var resized: Bitmap? = null
 
-        val pixels = IntArray(inputSize * inputSize)
+        try {
 
-        resized.getPixels(
-            pixels,
-            0,
-            inputSize,
-            0,
-            0,
-            inputSize,
-            inputSize
-        )
-
-        val input = FloatArray(
-            3 * inputSize * inputSize
-        )
-
-        val plane = inputSize * inputSize
-
-        for (i in pixels.indices) {
-
-            val p = pixels[i]
-
-            input[i] =
-                ((p shr 16) and 255) / 255f
-
-            input[plane + i] =
-                ((p shr 8) and 255) / 255f
-
-            input[2 * plane + i] =
-                (p and 255) / 255f
-        }
-
-        if (resized !== source && !resized.isRecycled) {
-            resized.recycle()
-        }
-
-        val tensor = OnnxTensor.createTensor(
-            env,
-            FloatBuffer.wrap(input),
-            longArrayOf(
-                1,
-                3,
-                inputSize.toLong(),
-                inputSize.toLong()
-            )
-        )
-
-        tensor.use {
-
-            val result = session.run(
-                mapOf(inputName to tensor)
+            resized = Bitmap.createScaledBitmap(
+                source,
+                inputSize,
+                inputSize,
+                true
             )
 
-            result.use {
+            val pixels = IntArray(inputSize * inputSize)
 
-                val output = result[0].value
+            resized.getPixels(
+                pixels,
+                0,
+                inputSize,
+                0,
+                0,
+                inputSize,
+                inputSize
+            )
 
-                val data = flatten(output)
+            val input = FloatArray(
+                3 * inputSize * inputSize
+            )
 
-                return decode(
-                    data,
-                    source.width.toFloat(),
-                    source.height.toFloat()
+            val plane = inputSize * inputSize
+
+            for (i in pixels.indices) {
+
+                val pixel = pixels[i]
+
+                input[i] =
+                    ((pixel shr 16) and 255) / 255f
+
+                input[plane + i] =
+                    ((pixel shr 8) and 255) / 255f
+
+                input[2 * plane + i] =
+                    (pixel and 255) / 255f
+            }
+
+            val tensor = OnnxTensor.createTensor(
+                env,
+                FloatBuffer.wrap(input),
+                longArrayOf(
+                    1,
+                    3,
+                    inputSize.toLong(),
+                    inputSize.toLong()
                 )
+            )
+
+            tensor.use {
+
+                session.run(
+                    mapOf(inputName to tensor)
+                ).use { result ->
+
+                    if (result.size() == 0) {
+                        return emptyList()
+                    }
+
+                    val output = result[0].value
+
+                    val data = flatten(output)
+
+                    return decode(
+                        data,
+                        source.width.toFloat(),
+                        source.height.toFloat()
+                    )
+                }
+            }
+
+        } catch (e: Exception) {
+
+            android.util.Log.e(
+                "YoloDetector",
+                "Detection failed",
+                e
+            )
+
+            return emptyList()
+
+        } finally {
+
+            if (
+                resized != null &&
+                resized !== source &&
+                !resized.isRecycled
+            ) {
+                resized.recycle()
             }
         }
     }
 
-    /**
-     * تبدیل خروجی مدل به آرایه Float
-     */
     private fun flatten(value: Any): FloatArray {
 
-        fun walk(
-            v: Any?,
-            out: MutableList<Float>
-        ) {
+        val output = ArrayList<Float>()
+
+        fun walk(v: Any?) {
 
             when (v) {
 
                 is FloatArray -> {
-                    v.forEach(out::add)
+                    for (item in v) {
+                        output.add(item)
+                    }
                 }
 
                 is Array<*> -> {
-                    v.forEach {
-                        if (it != null) {
-                            walk(it, out)
+                    for (item in v) {
+                        if (item != null) {
+                            walk(item)
                         }
                     }
+                }
+
+                is Number -> {
+                    output.add(v.toFloat())
                 }
             }
         }
 
-        val out = mutableListOf<Float>()
+        walk(value)
 
-        walk(value, out)
-
-        return out.toFloatArray()
+        return output.toFloatArray()
     }
 
-    /**
-     * Decode خروجی YOLO
-     */
     private fun decode(
-        a: FloatArray,
+        data: FloatArray,
         srcW: Float,
         srcH: Float
     ): List<Detection> {
 
-        if (a.size < 5) {
+        if (
+            data.isEmpty() ||
+            srcW <= 0f ||
+            srcH <= 0f
+        ) {
             return emptyList()
         }
 
-        val n = a.size / 5
+        // پشتیبانی از خروجی‌های رایج YOLO
+        val channels = 5
+
+        if (data.size % channels != 0) {
+            android.util.Log.w(
+                "YoloDetector",
+                "Unexpected output size: ${data.size}"
+            )
+
+            return emptyList()
+        }
+
+        val n = data.size / channels
+
+        if (n <= 0) {
+            return emptyList()
+        }
 
         val channelFirst = n > 100
 
@@ -180,48 +230,67 @@ class YoloDetector(context: Context) {
         for (i in 0 until n) {
 
             fun at(c: Int): Float {
-
                 return if (channelFirst) {
-                    a[c * n + i]
+                    data[c * n + i]
                 } else {
-                    a[i * 5 + c]
+                    data[i * channels + c]
                 }
             }
 
+            val cx = at(0)
+            val cy = at(1)
+            val w = at(2)
+            val h = at(3)
             val score = at(4)
 
             if (
-                score < CONFIDENCE_THRESHOLD ||
-                score > 1.01f
+                !cx.isFinite() ||
+                !cy.isFinite() ||
+                !w.isFinite() ||
+                !h.isFinite() ||
+                !score.isFinite()
             ) {
                 continue
             }
 
-            val cx =
-                at(0) * srcW / inputSize
+            if (
+                score < CONFIDENCE_THRESHOLD ||
+                score > 1.01f ||
+                w <= 0f ||
+                h <= 0f
+            ) {
+                continue
+            }
 
-            val cy =
-                at(1) * srcH / inputSize
+            val scaledCx = cx * srcW / inputSize
+            val scaledCy = cy * srcH / inputSize
+            val scaledW = w * srcW / inputSize
+            val scaledH = h * srcH / inputSize
 
-            val w =
-                at(2) * srcW / inputSize
+            val left = max(
+                0f,
+                scaledCx - scaledW / 2f
+            )
 
-            val h =
-                at(3) * srcH / inputSize
+            val top = max(
+                0f,
+                scaledCy - scaledH / 2f
+            )
 
-            val left =
-                max(0f, cx - w / 2f)
+            val right = min(
+                srcW,
+                scaledCx + scaledW / 2f
+            )
 
-            val top =
-                max(0f, cy - h / 2f)
+            val bottom = min(
+                srcH,
+                scaledCy + scaledH / 2f
+            )
 
-            val right =
-                min(srcW, cx + w / 2f)
-
-            val bottom =
-                min(srcH, cy + h / 2f)
-
-            if (right <= left || bottom <= top) {
+            if (
+                right <= left ||
+                bottom <= top
+            ) {
                 continue
             }
 
@@ -242,9 +311,6 @@ class YoloDetector(context: Context) {
         ).take(MAX_DETECTIONS)
     }
 
-    /**
-     * حذف تشخیص‌های تکراری
-     */
     private fun nms(
         items: List<Detection>,
         threshold: Float
@@ -256,7 +322,9 @@ class YoloDetector(context: Context) {
 
         val kept = mutableListOf<Detection>()
 
-        while (sorted.isNotEmpty()) {
+        while (sorted.isNotEmpty() &&
+            kept.size < MAX_DETECTIONS
+        ) {
 
             val best = sorted.removeAt(0)
 
@@ -277,9 +345,6 @@ class YoloDetector(context: Context) {
         return kept
     }
 
-    /**
-     * محاسبه IoU
-     */
     private fun iou(
         a: Detection,
         b: Detection
@@ -291,25 +356,20 @@ class YoloDetector(context: Context) {
         val x2 = min(a.right, b.right)
         val y2 = min(a.bottom, b.bottom)
 
-        val interWidth =
-            max(0f, x2 - x1)
+        val interWidth = max(0f, x2 - x1)
+        val interHeight = max(0f, y2 - y1)
 
-        val interHeight =
-            max(0f, y2 - y1)
-
-        val inter =
-            interWidth * interHeight
+        val inter = interWidth * interHeight
 
         val areaA =
             max(0f, a.right - a.left) *
-                    max(0f, a.bottom - a.top)
+            max(0f, a.bottom - a.top)
 
         val areaB =
             max(0f, b.right - b.left) *
-                    max(0f, b.bottom - b.top)
+            max(0f, b.bottom - b.top)
 
-        val union =
-            areaA + areaB - inter
+        val union = areaA + areaB - inter
 
         if (union <= 0f) {
             return 0f
@@ -318,10 +378,15 @@ class YoloDetector(context: Context) {
         return inter / union
     }
 
-    /**
-     * آزادسازی منابع
-     */
     fun close() {
-        session.close()
+        try {
+            session.close()
+        } catch (e: Exception) {
+            android.util.Log.e(
+                "YoloDetector",
+                "Error closing session",
+                e
+            )
+        }
     }
 }
