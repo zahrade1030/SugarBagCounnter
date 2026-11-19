@@ -54,6 +54,6 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.4.1")
     implementation("androidx.camera:camera-view:1.4.1")
 
-    // AI Detection - ONNX Runtime
+    // AI - ONNX Runtime
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
 }
