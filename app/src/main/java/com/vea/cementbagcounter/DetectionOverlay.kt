@@ -25,6 +25,9 @@ class DetectionOverlay(context: Context) : View(context) {
     private var showingTracked = false
     private var dragging = 0
 
+    // فاصله مجاز لمس برای انتخاب خطوط
+    private val touchThreshold = 40f * resources.displayMetrics.density
+
     // --------------------------------------------------
     // کادر تشخیص
     // --------------------------------------------------
@@ -73,6 +76,7 @@ class DetectionOverlay(context: Context) : View(context) {
         w: Int,
         h: Int
     ) {
+
         detections = list
 
         imageW = w.toFloat()
@@ -93,6 +97,7 @@ class DetectionOverlay(context: Context) : View(context) {
         w: Int,
         h: Int
     ) {
+
         trackedDetections = list
 
         imageW = w.toFloat()
@@ -199,7 +204,7 @@ class DetectionOverlay(context: Context) : View(context) {
 
         canvas.drawText(
             if (isSetup) {
-                "برای جابه‌جایی خطوط لمس کن"
+                "برای جابه‌جایی خطوط، روی خط لمس کنید"
             } else {
                 "شمارش فعال است"
             },
@@ -285,34 +290,67 @@ class DetectionOverlay(context: Context) : View(context) {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
 
+        // در حالت شمارش، لمس‌ها به لایه زیرین منتقل شوند.
+        // بنابراین تصویر راهنما قابل جابه‌جایی خواهد بود.
+
         if (!isSetup) {
             return false
         }
 
         val scale = imageScale()
 
-        val y = (
-            event.y - offsetY(scale)
-        ) / scale
+        val dy = offsetY(scale)
+
+        val imageY = (event.y - dy) / scale
+
+        val topScreenY = lineTop * scale + dy
+
+        val bottomScreenY = lineBottom * scale + dy
 
         when (event.action) {
 
             MotionEvent.ACTION_DOWN -> {
 
-                dragging = if (
-                    abs(y - lineTop) < abs(y - lineBottom)
+                val distanceTop =
+                    abs(event.y - topScreenY)
+
+                val distanceBottom =
+                    abs(event.y - bottomScreenY)
+
+                // فقط اگر لمس نزدیک یکی از خطوط باشد
+                // لمس را برای جابه‌جایی خط دریافت می‌کنیم.
+
+                if (
+                    distanceTop <= touchThreshold ||
+                    distanceBottom <= touchThreshold
                 ) {
-                    1
-                } else {
-                    2
+
+                    dragging = if (
+                        distanceTop <= distanceBottom
+                    ) {
+                        1
+                    } else {
+                        2
+                    }
+
+                    return true
                 }
 
-                return true
+                // لمس در سایر قسمت‌های صفحه:
+                // به تصویر راهنما اجازه دریافت لمس داده می‌شود.
+
+                dragging = 0
+
+                return false
             }
 
             MotionEvent.ACTION_MOVE -> {
 
-                val newY = y.coerceIn(
+                if (dragging == 0) {
+                    return false
+                }
+
+                val newY = imageY.coerceIn(
                     20f,
                     imageH - 20f
                 )
@@ -331,15 +369,25 @@ class DetectionOverlay(context: Context) : View(context) {
                 return true
             }
 
-            MotionEvent.ACTION_UP,
-            MotionEvent.ACTION_CANCEL -> {
+            MotionEvent.ACTION_UP -> {
+
+                val wasDragging = dragging != 0
 
                 dragging = 0
 
-                return true
+                return wasDragging
+            }
+
+            MotionEvent.ACTION_CANCEL -> {
+
+                val wasDragging = dragging != 0
+
+                dragging = 0
+
+                return wasDragging
             }
         }
 
-        return true
+        return dragging != 0
     }
 }
