@@ -44,15 +44,7 @@ object LicenseManager {
      */
 
     private const val PUBLIC_KEY_BASE64 =
-        """
-        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2XkJbp8AGSLo0xd9uNmT
-        6yGF49OOoKC6pGqhXmJfbIiavMf9u0vnyn+cvD8EEUOW3J4r7Tc33avK5QBacAHz
-        Yz2DmpRYh5Y2bM6Leb3VM7KtH6kltGn8dGJfW6cGydi+JPCqYwvMyr/6Ka7MhbEY
-        17h5duu8qvaJH/Q9lyuDlidJqGfEf97wlzw387cDvNz+cHso5vI8F8sLE27NgV8D
-        i6gzlHFr3b6kgVhFjXa7XZwDfcASYvw0qh8s2QskuGTGUkRN1fF1zh7ovcyaC+SN
-        juVi652p2z/ScFeW8ffBXpEelG9MkPCw09GcUxCNwGNobukdIDY8k2wjElYhl+YK
-        MwIDAQAB
-        """
+    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuI3IqY+X0dkdOSmxAmxJtDLiKuiSuNRHlmtaAWBU2u01KJEnhYwLjOgNgFBsp6hAduIyuEAqvrFqqBptl8YF+Ar59HIETNfdW+SzTtrwlxoUzMH0/3JBUksTs1AE2M2pvmN2HhTLz20GaeADZxqGCzrFAVLLmzd7NIY96c988TRDK0nyBx0yGkcBOgfBuju7oXTRFEFa6q/DVkmYSX64dpFnPo2PxCbJ5H2BccrZfC/jxcRu0B1034+NMYypqbrBrh/AR9UlqI8QomN3t1ZtUQ0g/7KUpVTVm0ZUyq3AruranUCQMWKDw/OS6l7q9UkcTBuHYAFeouPH/RvvbBW7OQIDAQAB"
 
     enum class LicenseStatus {
         ACTIVE,
