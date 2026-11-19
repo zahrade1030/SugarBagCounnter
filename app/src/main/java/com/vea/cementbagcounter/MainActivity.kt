@@ -32,6 +32,7 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -83,6 +84,8 @@ class MainActivity : AppCompatActivity() {
         ) { uri ->
             if (uri != null) {
                 saveExcelFile(uri)
+            } else {
+                pendingExcelData = null
             }
         }
 
@@ -228,12 +231,13 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
+        // اندازه تصویر راهنما کمی بزرگ‌تر شده است.
         cameraFrame.post {
             if (cameraFrame.width > 0 && cameraFrame.height > 0) {
 
                 guideImage.layoutParams = FrameLayout.LayoutParams(
-                    (cameraFrame.width * 0.72f).toInt(),
-                    (cameraFrame.height * 0.62f).toInt(),
+                    (cameraFrame.width * 0.78f).toInt(),
+                    (cameraFrame.height * 0.66f).toInt(),
                     Gravity.CENTER
                 )
             }
@@ -972,11 +976,30 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        pendingExcelData = createExcelFile(history)
+        try {
 
-        excelLauncher.launch(
-            "گزارش_شمارش_کیسه_قند.xlsx"
-        )
+            pendingExcelData = createExcelFile(history)
+
+            excelLauncher.launch(
+                "گزارش_شمارش_کیسه_قند.xlsx"
+            )
+
+        } catch (e: Exception) {
+
+            pendingExcelData = null
+
+            Log.e(
+                "SugarCounter",
+                "Excel creation error",
+                e
+            )
+
+            AlertDialog.Builder(this)
+                .setTitle("خطای ساخت فایل")
+                .setMessage("ساخت فایل Excel با خطا مواجه شد.")
+                .setPositiveButton("باشه", null)
+                .show()
+        }
     }
 
     private fun saveExcelFile(uri: Uri) {
@@ -985,12 +1008,17 @@ class MainActivity : AppCompatActivity() {
 
         try {
 
-            contentResolver.openOutputStream(uri)?.use { output ->
-                output.write(data)
-                output.flush()
+            val output = contentResolver.openOutputStream(uri)
+
+                ?: throw IllegalStateException("Output stream unavailable")
+
+            output.use {
+                it.write(data)
+                it.flush()
             }
 
             AlertDialog.Builder(this)
+                .setTitle("ذخیره موفق")
                 .setMessage("فایل Excel با موفقیت ذخیره شد.")
                 .setPositiveButton("باشه", null)
                 .show()
@@ -1004,7 +1032,7 @@ class MainActivity : AppCompatActivity() {
             )
 
             AlertDialog.Builder(this)
-                .setMessage("خطا در ذخیره فایل")
+                .setMessage("خطا در ذخیره فایل Excel")
                 .setPositiveButton("باشه", null)
                 .show()
 
@@ -1013,115 +1041,135 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * ساخت XLSX با ساختار ساده و استاندارد Office Open XML.
+     *
+     * در این نسخه از Styles و SharedStrings استفاده نمی‌شود.
+     * تمام رشته‌ها به صورت Inline String نوشته می‌شوند.
+     */
     private fun createExcelFile(history: JSONArray): ByteArray {
 
-        val output = java.io.ByteArrayOutputStream()
-        val zip = ZipOutputStream(output)
+        val output = ByteArrayOutputStream()
 
-        fun addEntry(name: String, content: String) {
+        ZipOutputStream(output).use { zip ->
 
-            zip.putNextEntry(ZipEntry(name))
-            zip.write(content.toByteArray(Charsets.UTF_8))
-            zip.closeEntry()
-        }
+            fun addEntry(
+                name: String,
+                content: String
+            ) {
 
-        var total = 0
+                zip.putNextEntry(ZipEntry(name))
 
-        for (i in 0 until history.length()) {
-            total += history.getJSONObject(i).optInt("count")
-        }
+                zip.write(
+                    content.toByteArray(Charsets.UTF_8)
+                )
 
-        val rows = StringBuilder()
+                zip.closeEntry()
+            }
 
-        rows.append(
-            """<row r="1"><c r="A1" t="inlineStr" s="1"><is><t>گزارش شمارش کیسه‌های قند</t></is></c></row>"""
-        )
+            var total = 0
 
-        rows.append(
-            """<row r="2"><c r="A2" t="inlineStr" s="2"><is><t>ردیف</t></is></c><c r="B2" t="inlineStr" s="2"><is><t>تاریخ شمسی</t></is></c><c r="C2" t="inlineStr" s="2"><is><t>ساعت</t></is></c><c r="D2" t="inlineStr" s="2"><is><t>تعداد کیسه</t></is></c></row>"""
-        )
+            for (i in 0 until history.length()) {
+                total += history.getJSONObject(i).optInt("count")
+            }
 
-        for (i in 0 until history.length()) {
+            val totalRow = history.length() + 3
 
-            val item = history.getJSONObject(i)
-            val row = i + 3
+            val lastColumn = "D"
 
-            val date = xmlEscape(item.optString("date"))
-            val time = xmlEscape(item.optString("time"))
-            val count = item.optInt("count")
+            val rows = StringBuilder()
 
+            // عنوان گزارش
             rows.append(
-                """<row r="$row"><c r="A$row" t="n"><v>${i + 1}</v></c><c r="B$row" t="inlineStr"><is><t>$date</t></is></c><c r="C$row" t="inlineStr"><is><t>$time</t></is></c><c r="D$row" t="n"><v>$count</v></c></row>"""
+                """<row r="1"><c r="A1" t="inlineStr"><is><t>گزارش شمارش کیسه‌های قند</t></is></c></row>"""
+            )
+
+            // عنوان ستون‌ها
+            rows.append(
+                """<row r="2"><c r="A2" t="inlineStr"><is><t>ردیف</t></is></c><c r="B2" t="inlineStr"><is><t>تاریخ شمسی</t></is></c><c r="C2" t="inlineStr"><is><t>ساعت</t></is></c><c r="D2" t="inlineStr"><is><t>تعداد کیسه</t></is></c></row>"""
+            )
+
+            // داده‌های تاریخچه
+            for (i in 0 until history.length()) {
+
+                val item = history.getJSONObject(i)
+
+                val row = i + 3
+
+                val date = xmlEscape(item.optString("date"))
+                val time = xmlEscape(item.optString("time"))
+                val count = item.optInt("count")
+
+                rows.append(
+                    """<row r="$row"><c r="A$row" t="n"><v>${i + 1}</v></c><c r="B$row" t="inlineStr"><is><t>$date</t></is></c><c r="C$row" t="inlineStr"><is><t>$time</t></is></c><c r="D$row" t="n"><v>$count</v></c></row>"""
+                )
+            }
+
+            // ردیف مجموع
+            rows.append(
+                """<row r="$totalRow"><c r="C$totalRow" t="inlineStr"><is><t>مجموع کل</t></is></c><c r="D$totalRow" t="n"><v>$total</v></c></row>"""
+            )
+
+            // Content Types
+            addEntry(
+                "[Content_Types].xml",
+                """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>"""
+            )
+
+            // رابطه اصلی فایل
+            addEntry(
+                "_rels/.rels",
+                """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>"""
+            )
+
+            // Workbook
+            addEntry(
+                "xl/workbook.xml",
+                """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets><sheet name="گزارش شمارش" sheetId="1" r:id="rId1"/></sheets></workbook>"""
+            )
+
+            // رابطه Worksheet
+            addEntry(
+                "xl/_rels/workbook.xml.rels",
+                """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>"""
+            )
+
+            // Worksheet
+            addEntry(
+                "xl/worksheets/sheet1.xml",
+                """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:$lastColumn$totalRow"/><sheetViews><sheetView workbookViewId="0" rightToLeft="1"/></sheetViews><sheetFormatPr defaultRowHeight="20"/><cols><col min="1" max="1" width="12" customWidth="1"/><col min="2" max="2" width="22" customWidth="1"/><col min="3" max="3" width="18" customWidth="1"/><col min="4" max="4" width="20" customWidth="1"/></cols><sheetData>$rows</sheetData></worksheet>"""
             )
         }
-
-        val totalRow = history.length() + 3
-
-        rows.append(
-            """<row r="$totalRow"><c r="C$totalRow" t="inlineStr" s="2"><is><t>مجموع کل</t></is></c><c r="D$totalRow" t="n" s="2"><v>$total</v></c></row>"""
-        )
-
-        addEntry(
-            "[Content_Types].xml",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>"""
-        )
-
-        addEntry(
-            "_rels/.rels",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>"""
-        )
-
-        addEntry(
-            "xl/workbook.xml",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="گزارش شمارش" sheetId="1" r:id="rId1"/></sheets></workbook>"""
-        )
-
-        addEntry(
-            "xl/_rels/workbook.xml.rels",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>"""
-        )
-
-        // XML اصلاح‌شده و معتبر
-        addEntry(
-            "xl/styles.xml",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<fonts count="2">
-<font><sz val="11"/><name val="Arial"/></font>
-<font><b/><sz val="14"/><name val="Arial"/></font>
-</fonts>
-<fills count="2">
-<fill><patternFill patternType="none"/></fill>
-<fill><patternFill patternType="solid"><fgColor rgb="FFDDEBE2"/><bgColor indexed="64"/></patternFill>
-</fills>
-<borders count="1">
-<border><left/><right/><top/><bottom/><diagonal/></border>
-</borders>
-<cellStyleXfs count="1">
-<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
-</cellStyleXfs>
-<cellXfs count="3">
-<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
-<xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
-<xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
-</cellXfs>
-</styleSheet>"""
-        )
-
-        addEntry(
-            "xl/worksheets/sheet1.xml",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView rightToLeft="1" workbookViewId="0"/></sheetViews><cols><col min="1" max="1" width="12" customWidth="1"/><col min="2" max="2" width="20" customWidth="1"/><col min="3" max="3" width="15" customWidth="1"/><col min="4" max="4" width="18" customWidth="1"/></cols><sheetData>$rows</sheetData></worksheet>"""
-        )
-
-        zip.finish()
-        zip.close()
 
         return output.toByteArray()
     }
 
+    /**
+     * پاکسازی و Escape کردن متن برای XML.
+     */
     private fun xmlEscape(value: String): String {
 
-        return value
+        val validXml = buildString {
+
+            for (character in value) {
+
+                val code = character.code
+
+                val isValid =
+                    code == 0x9 ||
+                    code == 0xA ||
+                    code == 0xD ||
+                    code in 0x20..0xD7FF ||
+                    code in 0xE000..0xFFFD ||
+                    code in 0x10000..0x10FFFF
+
+                if (isValid) {
+                    append(character)
+                }
+            }
+        }
+
+        return validXml
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
