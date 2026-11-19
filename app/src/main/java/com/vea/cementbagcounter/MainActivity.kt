@@ -1,4 +1,3 @@
-
 package com.vea.cementbagcounter
 
 import android.Manifest
@@ -6,7 +5,6 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
-import android.graphics.Matrix
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
@@ -14,8 +12,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
-import android.view.MotionEvent
-import android.view.ScaleGestureDetector
 import android.view.View
 import android.widget.Button
 import android.widget.FrameLayout
@@ -60,19 +56,6 @@ class MainActivity : AppCompatActivity() {
 
     private var guideVisible = true
     private var guideOpacity = 48
-
-    // تنظیمات اندازه و موقعیت تصویر راهنما
-    private var guideScale = 1f
-    private var guideOffsetX = 0f
-    private var guideOffsetY = 0f
-
-    private var lastTouchX = 0f
-    private var lastTouchY = 0f
-
-    private val guideMatrix = Matrix()
-    private lateinit var guideScaleDetector: ScaleGestureDetector
-
-    private var guideGestureMoved = false
 
     private lateinit var countText: TextView
     private lateinit var statusText: TextView
@@ -122,6 +105,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         detector = YoloDetector(this)
+
         buildUi()
 
         if (
@@ -200,21 +184,22 @@ class MainActivity : AppCompatActivity() {
         guideVisible = prefs.getBoolean("guide_visible", true)
         guideOpacity = prefs.getInt("guide_opacity", 48).coerceIn(0, 255)
 
-        guideScale = prefs.getFloat("guide_scale", 1f).coerceIn(0.3f, 5f)
-        guideOffsetX = prefs.getFloat("guide_offset_x", 0f)
-        guideOffsetY = prefs.getFloat("guide_offset_y", 0f)
-
         guideImage = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.MATRIX
+
+            scaleType = ImageView.ScaleType.FIT_CENTER
+
             alpha = guideOpacity / 255f
-            visibility = if (guideVisible) View.VISIBLE else View.GONE
-            isClickable = true
-            isFocusable = true
+
+            visibility =
+                if (guideVisible) View.VISIBLE else View.GONE
+
+            isClickable = false
+            isFocusable = false
+
             contentDescription = "تصویر راهنمای تنظیم دوربین"
         }
 
         loadGuideImage()
-        setupGuideGestures()
 
         overlay = DetectionOverlay(this)
 
@@ -228,13 +213,39 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
+        // تصویر راهنما با اندازه ثابت نسبی و در مرکز تصویر دوربین
         cameraFrame.addView(
             guideImage,
             FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
+                dp(280),
+                dp(220),
+                Gravity.CENTER
             )
         )
+
+        // تنظیم اندازه تصویر پس از مشخص شدن اندازه پیش‌نمایش
+        cameraFrame.post {
+
+            if (
+                cameraFrame.width > 0 &&
+                cameraFrame.height > 0
+            ) {
+
+                val guideWidth =
+                    (cameraFrame.width * 0.72f).toInt()
+
+                val guideHeight =
+                    (cameraFrame.height * 0.62f).toInt()
+
+                val params = FrameLayout.LayoutParams(
+                    guideWidth,
+                    guideHeight,
+                    Gravity.CENTER
+                )
+
+                guideImage.layoutParams = params
+            }
+        }
 
         cameraFrame.addView(
             overlay,
@@ -301,12 +312,19 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
+        // تنظیم خطوط
         addActionButton(firstRow, "تنظیم خطوط") {
+
+            running = true
+
             setupMode = true
             overlay.isSetup = true
-            statusText.text = "خطوط را با لمس جابه‌جا کنید"
+
+            statusText.text =
+                "خطوط را با لمس جابه‌جا کنید"
         }
 
+        // شروع شمارش
         addActionButton(firstRow, "شروع شمارش") {
 
             tracker.reset()
@@ -323,31 +341,40 @@ class MainActivity : AppCompatActivity() {
             statusText.text = "شمارش فعال است"
         }
 
+        // توقف
         addActionButton(firstRow, "توقف") {
             stopCounting()
         }
 
+        // ریست
         addActionButton(secondRow, "ریست") {
 
             totalCount = 0
+
             tracker.reset()
 
             countText.text = "تعداد: 0"
-            statusText.text = "شمارش از ابتدا آماده است"
+
+            statusText.text =
+                "شمارش از ابتدا آماده است"
         }
 
+        // تاریخچه
         addActionButton(secondRow, "تاریخچه") {
             showHistory()
         }
 
+        // آمار
         addActionButton(secondRow, "آمار") {
             showStatistics()
         }
 
+        // خروجی اکسل
         addActionButton(secondRow, "Excel") {
             exportExcel()
         }
 
+        // تنظیمات تصویر راهنما
         val guideSettingsButton =
             createIndustrialButton("تنظیم تصویر راهنما").apply {
                 setOnClickListener {
@@ -355,6 +382,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+        // درباره برنامه
         val aboutButton =
             createIndustrialButton("درباره برنامه").apply {
                 setOnClickListener {
@@ -416,205 +444,40 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (guideBitmap == null) {
-                Log.e("SugarCounter", "guide_overlay.jpg could not be decoded")
+
+                Log.e(
+                    "SugarCounter",
+                    "guide_overlay.jpg could not be decoded"
+                )
+
                 guideImage.visibility = View.GONE
+
                 return
             }
 
             guideImage.setImageBitmap(guideBitmap)
+
             guideImage.alpha = guideOpacity / 255f
+
             guideImage.visibility =
                 if (guideVisible) View.VISIBLE else View.GONE
-
-            guideImage.post {
-                applyGuideTransform()
-            }
 
         } catch (e: Exception) {
 
             guideBitmap = null
+
             guideImage.visibility = View.GONE
 
-            Log.e("SugarCounter", "Could not load guide_overlay.jpg", e)
+            Log.e(
+                "SugarCounter",
+                "Could not load guide_overlay.jpg",
+                e
+            )
         }
     }
 
     // --------------------------------------------------
-    // تنظیم زوم و حرکت تصویر راهنما
-    // --------------------------------------------------
-
-    private fun setupGuideGestures() {
-
-        guideScaleDetector = ScaleGestureDetector(
-            this,
-            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-
-                override fun onScale(
-                    detector: ScaleGestureDetector
-                ): Boolean {
-
-                    val oldScale = guideScale
-
-                    guideScale = (
-                        guideScale * detector.scaleFactor
-                    ).coerceIn(0.3f, 5f)
-
-                    if (oldScale != guideScale) {
-                        guideGestureMoved = true
-                        applyGuideTransform()
-                    }
-
-                    return true
-                }
-            }
-        )
-
-        guideImage.setOnTouchListener { _, event ->
-
-            guideScaleDetector.onTouchEvent(event)
-
-            when (event.actionMasked) {
-
-                MotionEvent.ACTION_DOWN -> {
-
-                    lastTouchX = event.x
-                    lastTouchY = event.y
-
-                    guideGestureMoved = false
-
-                    true
-                }
-
-                MotionEvent.ACTION_POINTER_DOWN -> {
-
-                    guideGestureMoved = true
-                    true
-                }
-
-                MotionEvent.ACTION_MOVE -> {
-
-                    if (
-                        event.pointerCount == 1 &&
-                        !guideScaleDetector.isInProgress
-                    ) {
-
-                        val dx = event.x - lastTouchX
-                        val dy = event.y - lastTouchY
-
-                        if (
-                            kotlin.math.abs(dx) > 0.5f ||
-                            kotlin.math.abs(dy) > 0.5f
-                        ) {
-
-                            guideOffsetX += dx
-                            guideOffsetY += dy
-
-                            guideGestureMoved = true
-
-                            applyGuideTransform()
-                        }
-                    }
-
-                    lastTouchX = event.x
-                    lastTouchY = event.y
-
-                    true
-                }
-
-                MotionEvent.ACTION_POINTER_UP -> {
-                    true
-                }
-
-                MotionEvent.ACTION_UP,
-                MotionEvent.ACTION_CANCEL -> {
-
-                    saveGuideTransform()
-                    true
-                }
-
-                else -> true
-            }
-        }
-    }
-
-    // --------------------------------------------------
-    // اعمال اندازه و موقعیت تصویر راهنما
-    // --------------------------------------------------
-
-    private fun applyGuideTransform() {
-
-        val bitmap = guideBitmap ?: return
-
-        if (
-            guideImage.width <= 0 ||
-            guideImage.height <= 0 ||
-            bitmap.width <= 0 ||
-            bitmap.height <= 0
-        ) {
-            return
-        }
-
-        val viewWidth = guideImage.width.toFloat()
-        val viewHeight = guideImage.height.toFloat()
-
-        // تصویر در ابتدا تمام سطح دوربین را پوشش می‌دهد.
-        val baseScale = maxOf(
-            viewWidth / bitmap.width,
-            viewHeight / bitmap.height
-        )
-
-        val finalScale = baseScale * guideScale
-
-        val scaledWidth = bitmap.width * finalScale
-        val scaledHeight = bitmap.height * finalScale
-
-        val centerX = (viewWidth - scaledWidth) / 2f
-        val centerY = (viewHeight - scaledHeight) / 2f
-
-        guideMatrix.reset()
-
-        guideMatrix.setScale(
-            finalScale,
-            finalScale
-        )
-
-        guideMatrix.postTranslate(
-            centerX + guideOffsetX,
-            centerY + guideOffsetY
-        )
-
-        guideImage.imageMatrix = guideMatrix
-    }
-
-    // --------------------------------------------------
-    // ذخیره تنظیمات تصویر راهنما
-    // --------------------------------------------------
-
-    private fun saveGuideTransform() {
-
-        prefs.edit()
-            .putFloat("guide_scale", guideScale)
-            .putFloat("guide_offset_x", guideOffsetX)
-            .putFloat("guide_offset_y", guideOffsetY)
-            .apply()
-    }
-
-    // --------------------------------------------------
-    // بازنشانی تصویر راهنما
-    // --------------------------------------------------
-
-    private fun resetGuideTransform() {
-
-        guideScale = 1f
-        guideOffsetX = 0f
-        guideOffsetY = 0f
-
-        applyGuideTransform()
-        saveGuideTransform()
-    }
-
-    // --------------------------------------------------
-    // پنجره تنظیمات تصویر راهنما
+    // تنظیمات تصویر راهنما
     // --------------------------------------------------
 
     private fun showGuideSettings() {
@@ -642,6 +505,7 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
+        // نمایش یا مخفی کردن تصویر
         val guideSwitch = Switch(this).apply {
             text = "نمایش تصویر راهنما"
             textSize = 15f
@@ -657,6 +521,7 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
+        // برچسب شفافیت
         val opacityLabel = TextView(this).apply {
             text = "شفافیت تصویر راهنما: ${guideOpacity * 100 / 255}%"
             textSize = 14f
@@ -666,6 +531,7 @@ class MainActivity : AppCompatActivity() {
 
         content.addView(opacityLabel)
 
+        // تنظیم شفافیت
         val opacitySeekBar = SeekBar(this).apply {
             max = 100
             progress = guideOpacity * 100 / 255
@@ -679,25 +545,9 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
-        val resetButton =
-            createIndustrialButton("بازنشانی اندازه و موقعیت").apply {
-                setOnClickListener {
-                    resetGuideTransform()
-                }
-            }
-
-        content.addView(
-            resetButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(52)
-            ).apply {
-                topMargin = dp(12)
-            }
-        )
-
+        // توضیحات
         val helpText = TextView(this).apply {
-            text = "برای بزرگ‌نمایی از دو انگشت استفاده کنید. برای جابه‌جایی، تصویر را با یک انگشت بکشید."
+            text = "اندازه و موقعیت تصویر راهنما ثابت است و فقط شفافیت آن قابل تنظیم است."
             textSize = 12f
             setTextColor(Color.LTGRAY)
             gravity = Gravity.CENTER
@@ -706,6 +556,7 @@ class MainActivity : AppCompatActivity() {
 
         content.addView(helpText)
 
+        // تغییر وضعیت نمایش
         guideSwitch.setOnCheckedChangeListener { _, checked ->
 
             guideVisible = checked
@@ -718,6 +569,7 @@ class MainActivity : AppCompatActivity() {
                 .apply()
         }
 
+        // تغییر شفافیت
         opacitySeekBar.setOnSeekBarChangeListener(
             object : SeekBar.OnSeekBarChangeListener {
 
@@ -794,6 +646,7 @@ class MainActivity : AppCompatActivity() {
                 try {
 
                     val bitmap = ImageUtil.toBitmap(image)
+
                     val detections = detector.detect(bitmap)
 
                     runOnUiThread {
@@ -828,7 +681,11 @@ class MainActivity : AppCompatActivity() {
 
                 } catch (e: Exception) {
 
-                    Log.e("SugarCounter", "Detection error", e)
+                    Log.e(
+                        "SugarCounter",
+                        "Detection error",
+                        e
+                    )
 
                     runOnUiThread {
                         statusText.text = "خطا در تشخیص تصویر"
@@ -859,6 +716,10 @@ class MainActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    // --------------------------------------------------
+    // توقف شمارش
+    // --------------------------------------------------
+
     private fun stopCounting() {
 
         if (totalCount > 0) {
@@ -866,6 +727,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         running = false
+
         statusText.text = "شمارش متوقف شد"
     }
 
@@ -901,6 +763,10 @@ class MainActivity : AppCompatActivity() {
             JSONArray()
         }
     }
+
+    // --------------------------------------------------
+    // نمایش تاریخچه
+    // --------------------------------------------------
 
     private fun showHistory() {
 
@@ -1043,7 +909,9 @@ class MainActivity : AppCompatActivity() {
         if (history.length() == 0) {
 
             AlertDialog.Builder(this)
-                .setMessage("برای ساخت گزارش، ابتدا باید سابقه شمارش داشته باشید.")
+                .setMessage(
+                    "برای ساخت گزارش، ابتدا باید سابقه شمارش داشته باشید."
+                )
                 .setPositiveButton("باشه", null)
                 .show()
 
@@ -1075,7 +943,11 @@ class MainActivity : AppCompatActivity() {
 
         } catch (e: Exception) {
 
-            Log.e("SugarCounter", "Excel save error", e)
+            Log.e(
+                "SugarCounter",
+                "Excel save error",
+                e
+            )
 
             AlertDialog.Builder(this)
                 .setMessage("خطا در ذخیره فایل: ${e.localizedMessage}")
@@ -1669,11 +1541,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
 
-        saveGuideTransform()
-
         super.onDestroy()
 
         executor.shutdown()
+
         detector.close()
 
         if (::guideImage.isInitialized) {
