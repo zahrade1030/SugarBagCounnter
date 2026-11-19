@@ -102,9 +102,14 @@ class YoloDetector(context: Context) {
             for (i in pixels.indices) {
                 val pixel = pixels[i]
 
-                input[i] = ((pixel shr 16) and 255) / 255f
-                input[plane + i] = ((pixel shr 8) and 255) / 255f
-                input[2 * plane + i] = (pixel and 255) / 255f
+                input[i] =
+                    ((pixel shr 16) and 255) / 255f
+
+                input[plane + i] =
+                    ((pixel shr 8) and 255) / 255f
+
+                input[2 * plane + i] =
+                    (pixel and 255) / 255f
             }
 
             OnnxTensor.createTensor(
@@ -126,12 +131,24 @@ class YoloDetector(context: Context) {
                         return emptyList()
                     }
 
-                    val outputValue = result[0].value
-                    val shape = result[0].info.shape
+                    val outputTensor =
+                        result[0] as? OnnxTensor
+                            ?: return emptyList()
 
-                    Log.d(TAG, "Output shape: ${shape.contentToString()}")
+                    // اصلاح خطای shape
+                    val tensorInfo =
+                        outputTensor.info as TensorInfo
 
-                    val output = flatten(outputValue)
+                    val shape = tensorInfo.shape
+
+                    Log.d(
+                        TAG,
+                        "Output shape: ${shape.contentToString()}"
+                    )
+
+                    val output = flatten(
+                        outputTensor.value
+                    )
 
                     return decode(
                         output,
@@ -164,16 +181,22 @@ class YoloDetector(context: Context) {
         fun walk(v: Any?) {
             when (v) {
                 is FloatArray -> {
-                    output.addAll(v.toList())
+                    for (item in v) {
+                        output.add(item)
+                    }
                 }
 
                 is DoubleArray -> {
-                    output.addAll(v.map { it.toFloat() })
+                    for (item in v) {
+                        output.add(item.toFloat())
+                    }
                 }
 
                 is Array<*> -> {
                     for (item in v) {
-                        if (item != null) walk(item)
+                        if (item != null) {
+                            walk(item)
+                        }
                     }
                 }
 
@@ -208,15 +231,26 @@ class YoloDetector(context: Context) {
             return emptyList()
         }
 
-        val dimensions = shape.map { it.toInt() }
+        val dimensions = shape.map {
+            it.toInt()
+        }
 
         val dim1 = dimensions[dimensions.size - 2]
         val dim2 = dimensions[dimensions.size - 1]
 
         val channelFirst = dim1 <= 100 && dim2 > dim1
 
-        val channels = if (channelFirst) dim1 else dim2
-        val candidates = if (channelFirst) dim2 else dim1
+        val channels = if (channelFirst) {
+            dim1
+        } else {
+            dim2
+        }
+
+        val candidates = if (channelFirst) {
+            dim2
+        } else {
+            dim1
+        }
 
         if (
             channels < 5 ||
@@ -230,14 +264,20 @@ class YoloDetector(context: Context) {
             return emptyList()
         }
 
-        val hasObjectness = channels >= 6 &&
+        val hasObjectness =
+            channels >= 6 &&
             channels != 5 + EXPECTED_CLASSES &&
             channels != 4 + EXPECTED_CLASSES
 
         val classCount = when {
             channels == 5 -> 1
-            channels == 4 + EXPECTED_CLASSES -> EXPECTED_CLASSES
-            channels >= 5 + EXPECTED_CLASSES -> channels - 5
+
+            channels == 4 + EXPECTED_CLASSES ->
+                EXPECTED_CLASSES
+
+            channels >= 5 + EXPECTED_CLASSES ->
+                channels - 5
+
             else -> 1
         }
 
@@ -272,8 +312,11 @@ class YoloDetector(context: Context) {
             var confidence = 0f
 
             if (channels == 5) {
+
                 confidence = at(4)
+
             } else if (hasObjectness) {
+
                 val objectness = at(4)
 
                 var bestClass = 0f
@@ -281,19 +324,27 @@ class YoloDetector(context: Context) {
                 for (c in 0 until classCount) {
                     val score = at(5 + c)
 
-                    if (score.isFinite() && score > bestClass) {
+                    if (
+                        score.isFinite() &&
+                        score > bestClass
+                    ) {
                         bestClass = score
                     }
                 }
 
                 confidence = objectness * bestClass
+
             } else {
+
                 var bestClass = 0f
 
                 for (c in 0 until classCount) {
                     val score = at(4 + c)
 
-                    if (score.isFinite() && score > bestClass) {
+                    if (
+                        score.isFinite() &&
+                        score > bestClass
+                    ) {
                         bestClass = score
                     }
                 }
@@ -309,15 +360,37 @@ class YoloDetector(context: Context) {
                 continue
             }
 
-            val scaledCx = cx * srcW / inputSize
-            val scaledCy = cy * srcH / inputSize
-            val scaledW = w * srcW / inputSize
-            val scaledH = h * srcH / inputSize
+            val scaledCx =
+                cx * srcW / inputSize
 
-            val left = max(0f, scaledCx - scaledW / 2f)
-            val top = max(0f, scaledCy - scaledH / 2f)
-            val right = min(srcW, scaledCx + scaledW / 2f)
-            val bottom = min(srcH, scaledCy + scaledH / 2f)
+            val scaledCy =
+                cy * srcH / inputSize
+
+            val scaledW =
+                w * srcW / inputSize
+
+            val scaledH =
+                h * srcH / inputSize
+
+            val left = max(
+                0f,
+                scaledCx - scaledW / 2f
+            )
+
+            val top = max(
+                0f,
+                scaledCy - scaledH / 2f
+            )
+
+            val right = min(
+                srcW,
+                scaledCx + scaledW / 2f
+            )
+
+            val bottom = min(
+                srcH,
+                scaledCy + scaledH / 2f
+            )
 
             if (
                 right <= left ||
@@ -337,8 +410,10 @@ class YoloDetector(context: Context) {
             )
         }
 
-        return nms(out, NMS_THRESHOLD)
-            .take(MAX_DETECTIONS)
+        return nms(
+            out,
+            NMS_THRESHOLD
+        ).take(MAX_DETECTIONS)
     }
 
     private fun nms(
@@ -346,10 +421,14 @@ class YoloDetector(context: Context) {
         threshold: Float
     ): List<Detection> {
 
-        if (items.isEmpty()) return emptyList()
+        if (items.isEmpty()) {
+            return emptyList()
+        }
 
         val sorted = items
-            .sortedByDescending { it.confidence }
+            .sortedByDescending {
+                it.confidence
+            }
             .toMutableList()
 
         val kept = mutableListOf<Detection>()
@@ -359,6 +438,7 @@ class YoloDetector(context: Context) {
             kept.size < MAX_DETECTIONS
         ) {
             val best = sorted.removeAt(0)
+
             kept.add(best)
 
             val iterator = sorted.iterator()
@@ -382,11 +462,20 @@ class YoloDetector(context: Context) {
 
         val x1 = max(a.left, b.left)
         val y1 = max(a.top, b.top)
+
         val x2 = min(a.right, b.right)
         val y2 = min(a.bottom, b.bottom)
 
-        val interWidth = max(0f, x2 - x1)
-        val interHeight = max(0f, y2 - y1)
+        val interWidth = max(
+            0f,
+            x2 - x1
+        )
+
+        val interHeight = max(
+            0f,
+            y2 - y1
+        )
+
         val inter = interWidth * interHeight
 
         val areaA =
@@ -399,7 +488,11 @@ class YoloDetector(context: Context) {
 
         val union = areaA + areaB - inter
 
-        return if (union <= 0f) 0f else inter / union
+        return if (union <= 0f) {
+            0f
+        } else {
+            inter / union
+        }
     }
 
     fun close() {
