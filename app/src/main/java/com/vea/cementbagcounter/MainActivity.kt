@@ -1,5 +1,5 @@
 package com.vea.cementbagcounter
-
+import android.content.Intent
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -111,6 +111,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // License verification gate
+        if (!LicenseManager.isActivated(this)) {
+            startActivity(
+                Intent(this, LicenseActivity::class.java)
+            )
+            finish()
+            return
+        }
 
         try {
             detector = YoloDetector(this)
