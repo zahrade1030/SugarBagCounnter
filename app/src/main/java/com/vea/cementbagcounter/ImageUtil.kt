@@ -13,25 +13,39 @@ object ImageUtil {
 
     /**
      * تبدیل فریم دوربین به Bitmap
+     * پشتیبانی از YUV_420_888 و Stride
      */
     fun toBitmap(image: ImageProxy): Bitmap {
 
         val width = image.width
         val height = image.height
 
-        val yPlane = image.planes[0]
-        val uPlane = image.planes[1]
-        val vPlane = image.planes[2]
+        require(width > 0 && height > 0) {
+            "Invalid camera image dimensions"
+        }
+
+        val planes = image.planes
+
+        require(planes.size >= 3) {
+            "Unsupported camera image format"
+        }
+
+        val yPlane = planes[0]
+        val uPlane = planes[1]
+        val vPlane = planes[2]
 
         val yBuffer = yPlane.buffer.duplicate()
         val uBuffer = uPlane.buffer.duplicate()
         val vBuffer = vPlane.buffer.duplicate()
 
-        val nv21 = ByteArray(width * height * 3 / 2)
+        val ySize = width * height
+        val uvSize = width * height / 2
+
+        val nv21 = ByteArray(ySize + uvSize)
 
         var outputIndex = 0
 
-        // کپی کانال روشنایی Y
+        // کپی کانال Y
         for (row in 0 until height) {
 
             val rowStart =
@@ -39,14 +53,14 @@ object ImageUtil {
 
             for (col in 0 until width) {
 
-                nv21[outputIndex++] =
-                    yBuffer.get(
-                        rowStart + col * yPlane.pixelStride
-                    )
+                val index =
+                    rowStart + col * yPlane.pixelStride
+
+                nv21[outputIndex++] = yBuffer.get(index)
             }
         }
 
-        // کپی کانال‌های رنگی UV
+        // کپی کانال‌های V و U برای فرمت NV21
         for (row in 0 until height / 2) {
 
             val uRowStart =
@@ -57,19 +71,18 @@ object ImageUtil {
 
             for (col in 0 until width / 2) {
 
-                nv21[outputIndex++] =
-                    vBuffer.get(
-                        vRowStart + col * vPlane.pixelStride
-                    )
+                val vIndex =
+                    vRowStart + col * vPlane.pixelStride
 
-                nv21[outputIndex++] =
-                    uBuffer.get(
-                        uRowStart + col * uPlane.pixelStride
-                    )
+                val uIndex =
+                    uRowStart + col * uPlane.pixelStride
+
+                nv21[outputIndex++] = vBuffer.get(vIndex)
+                nv21[outputIndex++] = uBuffer.get(uIndex)
             }
         }
 
-        // تبدیل NV21 به JPEG
+        // تبدیل YUV به JPEG
         val yuvImage = YuvImage(
             nv21,
             ImageFormat.NV21,
@@ -82,7 +95,7 @@ object ImageUtil {
 
         val success = yuvImage.compressToJpeg(
             Rect(0, 0, width, height),
-            90,
+            85,
             output
         )
 
@@ -103,9 +116,8 @@ object ImageUtil {
             "Camera image conversion failed"
         )
 
-        // اعمال چرخش دوربین
-        val rotation =
-            image.imageInfo.rotationDegrees
+        // چرخش تصویر براساس اطلاعات CameraX
+        val rotation = image.imageInfo.rotationDegrees
 
         if (rotation == 0) {
             return bitmap
@@ -125,7 +137,6 @@ object ImageUtil {
             true
         )
 
-        // آزادسازی Bitmap اولیه در صورت ایجاد Bitmap جدید
         if (rotatedBitmap !== bitmap) {
             bitmap.recycle()
         }
