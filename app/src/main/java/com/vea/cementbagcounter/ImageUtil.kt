@@ -12,8 +12,9 @@ import java.io.ByteArrayOutputStream
 object ImageUtil {
 
     /**
-     * تبدیل فریم دوربین به Bitmap
-     * پشتیبانی از YUV_420_888 و Stride
+     * تبدیل ImageProxy به Bitmap
+     * پشتیبانی از YUV_420_888، RowStride و PixelStride
+     * مدیریت چرخش تصویر و آزادسازی حافظه
      */
     fun toBitmap(image: ImageProxy): Bitmap {
 
@@ -24,10 +25,14 @@ object ImageUtil {
             "Invalid camera image dimensions"
         }
 
+        require(image.format == ImageFormat.YUV_420_888) {
+            "Unsupported image format: ${image.format}"
+        }
+
         val planes = image.planes
 
         require(planes.size >= 3) {
-            "Unsupported camera image format"
+            "Invalid YUV image planes"
         }
 
         val yPlane = planes[0]
@@ -45,7 +50,7 @@ object ImageUtil {
 
         var outputIndex = 0
 
-        // کپی کانال Y
+        // کانال Y
         for (row in 0 until height) {
 
             val rowStart =
@@ -56,11 +61,17 @@ object ImageUtil {
                 val index =
                     rowStart + col * yPlane.pixelStride
 
+                if (index >= yBuffer.limit()) {
+                    throw IllegalStateException(
+                        "Y plane buffer overflow"
+                    )
+                }
+
                 nv21[outputIndex++] = yBuffer.get(index)
             }
         }
 
-        // کپی کانال‌های V و U برای فرمت NV21
+        // کانال‌های V و U به ترتیب NV21
         for (row in 0 until height / 2) {
 
             val uRowStart =
@@ -77,12 +88,20 @@ object ImageUtil {
                 val uIndex =
                     uRowStart + col * uPlane.pixelStride
 
+                if (
+                    vIndex >= vBuffer.limit() ||
+                    uIndex >= uBuffer.limit()
+                ) {
+                    throw IllegalStateException(
+                        "UV plane buffer overflow"
+                    )
+                }
+
                 nv21[outputIndex++] = vBuffer.get(vIndex)
                 nv21[outputIndex++] = uBuffer.get(uIndex)
             }
         }
 
-        // تبدیل YUV به JPEG
         val yuvImage = YuvImage(
             nv21,
             ImageFormat.NV21,
@@ -91,32 +110,30 @@ object ImageUtil {
             null
         )
 
-        val output = ByteArrayOutputStream()
+        val jpegOutput = ByteArrayOutputStream()
 
-        val success = yuvImage.compressToJpeg(
+        val compressed = yuvImage.compressToJpeg(
             Rect(0, 0, width, height),
-            85,
-            output
+            90,
+            jpegOutput
         )
 
-        if (!success) {
+        if (!compressed) {
             throw IllegalStateException(
                 "YUV to JPEG conversion failed"
             )
         }
 
-        val jpegBytes = output.toByteArray()
+        val jpegBytes = jpegOutput.toByteArray()
 
-        // تبدیل JPEG به Bitmap
-        val bitmap = BitmapFactory.decodeByteArray(
+        var bitmap = BitmapFactory.decodeByteArray(
             jpegBytes,
             0,
             jpegBytes.size
         ) ?: throw IllegalStateException(
-            "Camera image conversion failed"
+            "Bitmap decoding failed"
         )
 
-        // چرخش تصویر براساس اطلاعات CameraX
         val rotation = image.imageInfo.rotationDegrees
 
         if (rotation == 0) {
@@ -127,7 +144,7 @@ object ImageUtil {
             postRotate(rotation.toFloat())
         }
 
-        val rotatedBitmap = Bitmap.createBitmap(
+        val rotated = Bitmap.createBitmap(
             bitmap,
             0,
             0,
@@ -137,10 +154,63 @@ object ImageUtil {
             true
         )
 
-        if (rotatedBitmap !== bitmap) {
+        if (rotated !== bitmap) {
+            bitmap.recycle()
+            bitmap = rotated
+        }
+
+        return bitmap
+    }
+
+    /**
+     * تبدیل فریم دوربین به Bitmap با رزولوشن کوچک‌تر
+     * برای کاهش مصرف حافظه و پردازش
+     */
+    fun toBitmapScaled(
+        image: ImageProxy,
+        maxDimension: Int = 1280
+    ): Bitmap {
+
+        val bitmap = toBitmap(image)
+
+        if (maxDimension <= 0) {
+            return bitmap
+        }
+
+        val largestDimension = max(
+            bitmap.width,
+            bitmap.height
+        )
+
+        if (largestDimension <= maxDimension) {
+            return bitmap
+        }
+
+        val scale = maxDimension.toFloat() / largestDimension
+
+        val newWidth = (bitmap.width * scale)
+            .toInt()
+            .coerceAtLeast(1)
+
+        val newHeight = (bitmap.height * scale)
+            .toInt()
+            .coerceAtLeast(1)
+
+        val scaled = Bitmap.createScaledBitmap(
+            bitmap,
+            newWidth,
+            newHeight,
+            true
+        )
+
+        if (scaled !== bitmap) {
             bitmap.recycle()
         }
 
-        return rotatedBitmap
+        return scaled
+    }
+
+    private fun max(a: Int, b: Int): Int {
+        return if (a > b) a else b
     }
 }
