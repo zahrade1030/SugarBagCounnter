@@ -64,10 +64,13 @@ class MainActivity : AppCompatActivity() {
 
     private val executor = Executors.newSingleThreadExecutor()
 
+    @Volatile
     private var running = true
-    private var setupMode = true
-    private var totalCount = 0
 
+    @Volatile
+    private var setupMode = true
+
+    private var totalCount = 0
     private var sessionSaved = false
 
     private val tracker = SimpleLineCounter()
@@ -109,7 +112,24 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        detector = YoloDetector(this)
+        try {
+            detector = YoloDetector(this)
+        } catch (e: Exception) {
+            Log.e("SugarCounter", "Model initialization failed", e)
+
+            AlertDialog.Builder(this)
+                .setTitle("خطا در بارگذاری مدل")
+                .setMessage(
+                    "فایل مدل best.onnx در برنامه یافت نشد یا قابل بارگذاری نیست.\n\n${e.message}"
+                )
+                .setPositiveButton("بستن") { _, _ ->
+                    finish()
+                }
+                .setCancelable(false)
+                .show()
+
+            return
+        }
 
         buildUi()
 
@@ -666,7 +686,7 @@ class MainActivity : AppCompatActivity() {
 
                 analysis.setAnalyzer(executor) { image ->
 
-                    if (!running) {
+                    if (!running || isFinishing || isDestroyed) {
                         image.close()
                         return@setAnalyzer
                     }
@@ -676,6 +696,10 @@ class MainActivity : AppCompatActivity() {
                     try {
 
                         bitmap = ImageUtil.toBitmap(image)
+
+                        if (bitmap == null || bitmap.isRecycled) {
+                            return@setAnalyzer
+                        }
 
                         val detections = detector.detect(bitmap)
 
@@ -1099,7 +1123,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             val totalRow = history.length() + 3
-
             val lastColumn = "D"
 
             val rows = StringBuilder()
@@ -1654,7 +1677,9 @@ class MainActivity : AppCompatActivity() {
 
         executor.shutdown()
 
-        detector.close()
+        if (::detector.isInitialized) {
+            detector.close()
+        }
 
         if (::guideImage.isInitialized) {
             guideImage.setImageDrawable(null)
