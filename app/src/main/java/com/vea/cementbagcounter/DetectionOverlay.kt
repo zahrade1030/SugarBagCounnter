@@ -1,13 +1,9 @@
-
 package com.vea.cementbagcounter
 
 import android.content.Context
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Rect
-import android.graphics.RectF
 import android.view.MotionEvent
 import android.view.View
 import kotlin.math.abs
@@ -29,57 +25,48 @@ class DetectionOverlay(context: Context) : View(context) {
     private var showingTracked = false
     private var dragging = 0
 
-    // بارگذاری تصویر راهنما از پوشه assets
-    private val guideBitmap by lazy {
-        runCatching {
-            context.assets.open("guide_overlay.jpg").use { stream ->
-                BitmapFactory.decodeStream(stream)
-            }
-        }.getOrNull()
-    }
-
-    private val guideBitmapPaint =
-        Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-
-    // تنظیمات تصویر راهنما
-    var guideOverlayEnabled = true
-        set(value) {
-            field = value
-            invalidate()
-        }
-
-    var guideOverlayAlpha = 48
-        set(value) {
-            field = value.coerceIn(0, 255)
-            invalidate()
-        }
-
+    // --------------------------------------------------
     // کادر تشخیص
+    // --------------------------------------------------
+
     private val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.GREEN
         style = Paint.Style.STROKE
         strokeWidth = 3f
     }
 
+    // --------------------------------------------------
     // خطوط شمارش
+    // --------------------------------------------------
+
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.YELLOW
         strokeWidth = 5f
     }
 
+    // --------------------------------------------------
     // نوشته‌ها
+    // --------------------------------------------------
+
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         textSize = 30f
         typeface = android.graphics.Typeface.DEFAULT_BOLD
     }
 
+    // --------------------------------------------------
     // پس‌زمینه نوشته شناسه
+    // --------------------------------------------------
+
     private val labelBackgroundPaint =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(20, 20, 20)
             style = Paint.Style.FILL
         }
+
+    // --------------------------------------------------
+    // دریافت تشخیص‌ها
+    // --------------------------------------------------
 
     fun setDetections(
         list: List<Detection>,
@@ -87,6 +74,7 @@ class DetectionOverlay(context: Context) : View(context) {
         h: Int
     ) {
         detections = list
+
         imageW = w.toFloat()
         imageH = h.toFloat()
 
@@ -96,12 +84,17 @@ class DetectionOverlay(context: Context) : View(context) {
         invalidate()
     }
 
+    // --------------------------------------------------
+    // دریافت تشخیص‌های ردیابی‌شده
+    // --------------------------------------------------
+
     fun setTrackedDetections(
         list: List<TrackedDetection>,
         w: Int,
         h: Int
     ) {
         trackedDetections = list
+
         imageW = w.toFloat()
         imageH = h.toFloat()
 
@@ -110,8 +103,15 @@ class DetectionOverlay(context: Context) : View(context) {
         invalidate()
     }
 
+    // --------------------------------------------------
+    // محاسبه اندازه تصویر دوربین
+    // --------------------------------------------------
+
     private fun imageScale(): Float {
-        if (imageW <= 0f || imageH <= 0f) return 1f
+
+        if (imageW <= 0f || imageH <= 0f) {
+            return 1f
+        }
 
         return max(
             width / imageW,
@@ -120,28 +120,34 @@ class DetectionOverlay(context: Context) : View(context) {
     }
 
     private fun offsetX(scale: Float): Float {
+
         return (width - imageW * scale) / 2f
     }
 
     private fun offsetY(scale: Float): Float {
+
         return (height - imageH * scale) / 2f
     }
 
+    // --------------------------------------------------
+    // رسم خطوط و کادرهای تشخیص
+    // --------------------------------------------------
+
     override fun onDraw(canvas: Canvas) {
+
         super.onDraw(canvas)
 
-        // مرحله اول: تصویر راهنما
-        if (guideOverlayEnabled) {
-            drawReferenceGuide(canvas)
-        }
-
         val scale = imageScale()
+
         val dx = offsetX(scale)
         val dy = offsetY(scale)
 
-        // مرحله دوم: کادرهای تشخیص و ردیابی
+        // کادرهای تشخیص و ردیابی
+
         if (showingTracked) {
+
             trackedDetections.forEach { tracked ->
+
                 drawDetection(
                     canvas,
                     tracked.detection,
@@ -151,8 +157,11 @@ class DetectionOverlay(context: Context) : View(context) {
                     tracked.id
                 )
             }
+
         } else {
+
             detections.forEach { detection ->
+
                 drawDetection(
                     canvas,
                     detection,
@@ -164,8 +173,10 @@ class DetectionOverlay(context: Context) : View(context) {
             }
         }
 
-        // مرحله سوم: خطوط شمارش
+        // خطوط شمارش
+
         val topY = lineTop * scale + dy
+
         val bottomY = lineBottom * scale + dy
 
         canvas.drawLine(
@@ -185,6 +196,7 @@ class DetectionOverlay(context: Context) : View(context) {
         )
 
         // پیام وضعیت
+
         canvas.drawText(
             if (isSetup) {
                 "برای جابه‌جایی خطوط لمس کن"
@@ -197,69 +209,10 @@ class DetectionOverlay(context: Context) : View(context) {
         )
     }
 
-    // نمایش تصویر راهنمای دوربین با حفظ نسبت تصویر
-    private fun drawReferenceGuide(canvas: Canvas) {
+    // --------------------------------------------------
+    // رسم کادر تشخیص و شناسه کیسه
+    // --------------------------------------------------
 
-        if (width <= 0 || height <= 0 || guideOverlayAlpha <= 0) {
-            return
-        }
-
-        val bitmap = guideBitmap ?: return
-
-        val viewWidth = width.toFloat()
-        val viewHeight = height.toFloat()
-
-        val bitmapRatio =
-            bitmap.width.toFloat() / bitmap.height.toFloat()
-
-        val viewRatio = viewWidth / viewHeight
-
-        // برش مرکزی تصویر برای پر کردن پیش‌نمایش بدون کشیدگی
-        val source = if (bitmapRatio > viewRatio) {
-
-            val cropWidth =
-                (bitmap.height * viewRatio).toInt().coerceAtLeast(1)
-
-            val left = (bitmap.width - cropWidth) / 2
-
-            Rect(
-                left,
-                0,
-                left + cropWidth,
-                bitmap.height
-            )
-
-        } else {
-
-            val cropHeight =
-                (bitmap.width / viewRatio).toInt().coerceAtLeast(1)
-
-            val top = (bitmap.height - cropHeight) / 2
-
-            Rect(
-                0,
-                top,
-                bitmap.width,
-                top + cropHeight
-            )
-        }
-
-        guideBitmapPaint.alpha = guideOverlayAlpha
-
-        canvas.drawBitmap(
-            bitmap,
-            source,
-            RectF(
-                0f,
-                0f,
-                viewWidth,
-                viewHeight
-            ),
-            guideBitmapPaint
-        )
-    }
-
-    // نمایش کادر تشخیص و شناسه کیسه
     private fun drawDetection(
         canvas: Canvas,
         detection: Detection,
@@ -270,9 +223,14 @@ class DetectionOverlay(context: Context) : View(context) {
     ) {
 
         val left = detection.left * scale + dx
+
         val top = detection.top * scale + dy
+
         val right = detection.right * scale + dx
+
         val bottom = detection.bottom * scale + dy
+
+        // رسم کادر
 
         canvas.drawRect(
             left,
@@ -282,9 +240,14 @@ class DetectionOverlay(context: Context) : View(context) {
             boxPaint
         )
 
+        // متن شناسه و اطمینان تشخیص
+
         val label = if (trackId != null) {
+
             "ID $trackId | ${(detection.confidence * 100).toInt()}%"
+
         } else {
+
             "${(detection.confidence * 100).toInt()}%"
         }
 
@@ -293,6 +256,8 @@ class DetectionOverlay(context: Context) : View(context) {
 
         val labelTop =
             (top - 42f).coerceAtLeast(0f)
+
+        // پس‌زمینه نوشته
 
         canvas.drawRoundRect(
             left,
@@ -304,6 +269,8 @@ class DetectionOverlay(context: Context) : View(context) {
             labelBackgroundPaint
         )
 
+        // نوشته
+
         canvas.drawText(
             label,
             left + 8f,
@@ -312,10 +279,15 @@ class DetectionOverlay(context: Context) : View(context) {
         )
     }
 
+    // --------------------------------------------------
     // جابه‌جایی خطوط شمارش با لمس
+    // --------------------------------------------------
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
 
-        if (!isSetup) return false
+        if (!isSetup) {
+            return false
+        }
 
         val scale = imageScale()
 
@@ -346,12 +318,16 @@ class DetectionOverlay(context: Context) : View(context) {
                 )
 
                 if (dragging == 1) {
+
                     lineTop = newY
+
                 } else if (dragging == 2) {
+
                     lineBottom = newY
                 }
 
                 invalidate()
+
                 return true
             }
 
@@ -359,6 +335,7 @@ class DetectionOverlay(context: Context) : View(context) {
             MotionEvent.ACTION_CANCEL -> {
 
                 dragging = 0
+
                 return true
             }
         }
