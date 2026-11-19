@@ -88,8 +88,8 @@ class SimpleLineCounter {
         val validDetections = detections
             .filter {
                 detectionInsideRoi(it) &&
-                it.confidence.isFinite() &&
-                it.confidence > 0f
+                    it.confidence.isFinite() &&
+                    it.confidence > 0f
             }
             .sortedByDescending { it.confidence }
 
@@ -98,8 +98,8 @@ class SimpleLineCounter {
             val candidate = tracks.entries
                 .filter { (id, track) ->
                     id !in matchedIds &&
-                    track.missed <= 3 &&
-                    isAssociationPossible(track, detection)
+                        track.missed <= 3 &&
+                        isAssociationPossible(track, detection)
                 }
                 .minByOrNull {
                     associationCost(it.value, detection)
@@ -114,27 +114,23 @@ class SimpleLineCounter {
                 track = candidate.value
                 matchedIds.add(trackId)
 
-                val previousX = track.x
                 val previousY = track.y
 
-                val dx = detection.cx - previousX
-                val dy = detection.cy - previousY
+                val dx = detection.cx - track.x
+                val dy = detection.cy - track.y
 
-                val velocityWeight = if (track.missed == 0) {
-                    0.55f
-                } else {
-                    0.35f
-                }
+                val velocityWeight =
+                    if (track.missed == 0) 0.55f else 0.35f
 
                 track.velocityX = (
                     track.velocityX * (1f - velocityWeight) +
-                    dx * velocityWeight
-                ).coerceIn(-maxVelocity, maxVelocity)
+                        dx * velocityWeight
+                    ).coerceIn(-maxVelocity, maxVelocity)
 
                 track.velocityY = (
                     track.velocityY * (1f - velocityWeight) +
-                    dy * velocityWeight
-                ).coerceIn(-maxVelocity, maxVelocity)
+                        dy * velocityWeight
+                    ).coerceIn(-maxVelocity, maxVelocity)
 
                 track.previousY = previousY
 
@@ -151,7 +147,7 @@ class SimpleLineCounter {
                 track.lastDetection = detection
                 track.confidence = detection.confidence
 
-                // Track باید ابتدا داخل محدوده شمارش قرار بگیرد.
+                // Track must enter the counting zone before being armed.
                 if (
                     track.y > topLine &&
                     track.y < bottomLine
@@ -159,7 +155,7 @@ class SimpleLineCounter {
                     track.armed = true
                 }
 
-                // شمارش عبور از خط، فقط یک بار برای هر Track
+                // Count one crossing per tracked object.
                 if (
                     track.armed &&
                     !track.counted &&
@@ -207,7 +203,7 @@ class SimpleLineCounter {
             )
         }
 
-        // پیش‌بینی موقعیت Trackهای موقتاً ازدست‌رفته
+        // Predict positions for temporarily missing objects.
         tracks.forEach { (id, track) ->
 
             if (
@@ -215,6 +211,7 @@ class SimpleLineCounter {
                 track.missed in 1..predictionLimit &&
                 track.lastDetection != null
             ) {
+
                 val predicted = predictedDetection(track)
 
                 if (detectionInsideRoi(predicted)) {
@@ -229,7 +226,7 @@ class SimpleLineCounter {
             }
         }
 
-        // پاک‌سازی Trackهای قدیمی
+        // Remove expired tracks.
         tracks.entries.removeAll {
             it.value.missed > maxMissedFrames
         }
@@ -244,7 +241,7 @@ class SimpleLineCounter {
         detection: Detection
     ): Boolean {
         return detection.cx >= roiLeft &&
-               detection.cx <= roiRight
+            detection.cx <= roiRight
     }
 
     private fun isAssociationPossible(
@@ -258,7 +255,6 @@ class SimpleLineCounter {
             return false
         }
 
-        // جلوگیری از اتصال اشتباه اشیای بسیار متفاوت
         val oldWidth = max(1f, track.right - track.left)
         val oldHeight = max(1f, track.bottom - track.top)
 
@@ -312,7 +308,7 @@ class SimpleLineCounter {
 
         val sizePenalty =
             abs(oldWidth - newWidth) +
-            abs(oldHeight - newHeight)
+                abs(oldHeight - newHeight)
 
         val confidencePenalty =
             (1f - detection.confidence) * 20f
