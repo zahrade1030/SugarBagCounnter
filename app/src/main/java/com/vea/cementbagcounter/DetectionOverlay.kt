@@ -183,7 +183,6 @@ class DetectionOverlay(context: Context) : View(context) {
             return 1f
         }
 
-        // هماهنگی با Preview از نوع CENTER_CROP
         return max(
             width / imageW,
             height / imageH
@@ -234,7 +233,6 @@ class DetectionOverlay(context: Context) : View(context) {
         }
 
         drawGuides(canvas, scale, dx, dy)
-
         drawStatusMessage(canvas)
     }
 
@@ -350,7 +348,7 @@ class DetectionOverlay(context: Context) : View(context) {
         canvas.drawRoundRect(
             left,
             top,
-            left + textWidth + padding * 2f,
+            left + textWidth + padding * 2,
             top + labelHeight,
             6f * density,
             6f * density,
