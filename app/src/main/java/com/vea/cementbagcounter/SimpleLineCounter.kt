@@ -1,4 +1,3 @@
-
 package com.vea.cementbagcounter
 
 import kotlin.math.abs
@@ -47,6 +46,9 @@ class SimpleLineCounter {
     private val maxMissedFrames = 12
     private val maxAssociationDistance = 140f
 
+    // جلوگیری از پرش ناگهانی Track بین دو کیسه
+    private val maxVelocity = 100f
+
     fun setLines(top: Float, bottom: Float) {
         topLine = min(top, bottom)
         bottomLine = max(top, bottom)
@@ -87,7 +89,8 @@ class SimpleLineCounter {
                 .filter { (id, track) ->
                     id !in matchedIds &&
                     track.missed <= 2 &&
-                    associationDistance(track, detection) < maxAssociationDistance
+                    associationDistance(track, detection) <
+                    maxAssociationDistance
                 }
                 .minByOrNull {
                     associationDistance(it.value, detection)
@@ -108,10 +111,12 @@ class SimpleLineCounter {
                 val dy = detection.cy - track.y
 
                 track.velocityX =
-                    track.velocityX * 0.5f + dx * 0.5f
+                    (track.velocityX * 0.5f + dx * 0.5f)
+                        .coerceIn(-maxVelocity, maxVelocity)
 
                 track.velocityY =
-                    track.velocityY * 0.5f + dy * 0.5f
+                    (track.velocityY * 0.5f + dy * 0.5f)
+                        .coerceIn(-maxVelocity, maxVelocity)
 
                 track.x = detection.cx
                 track.y = detection.cy
@@ -125,7 +130,7 @@ class SimpleLineCounter {
                 track.hits++
                 track.lastDetection = detection
 
-                // ورود کیسه به محدوده بین دو خط
+                // فعال شدن Track پس از ورود به محدوده شمارش
                 if (
                     track.y > topLine &&
                     track.y < bottomLine
@@ -133,7 +138,7 @@ class SimpleLineCounter {
                     track.armed = true
                 }
 
-                // شمارش عبور از خط بالایی
+                // شمارش عبور واقعی از خط بالایی
                 if (
                     track.armed &&
                     !track.counted &&
@@ -179,7 +184,7 @@ class SimpleLineCounter {
             )
         }
 
-        // نمایش موقت کیسه‌هایی که در چند فریم تشخیص داده نشده‌اند
+        // پیش‌بینی موقعیت کیسه در فریم‌های ازدست‌رفته
         tracks.forEach { (id, track) ->
 
             if (
@@ -201,7 +206,7 @@ class SimpleLineCounter {
             }
         }
 
-        // حذف Trackهای قدیمی
+        // حذف Trackهای منقضی شده
         tracks.entries.removeAll {
             it.value.missed > maxMissedFrames
         }
@@ -224,8 +229,7 @@ class SimpleLineCounter {
         detection: Detection
     ): Float {
 
-        val predictionFrames =
-            min(track.missed + 1, 2)
+        val predictionFrames = min(track.missed + 1, 2)
 
         val predictedX =
             track.x + track.velocityX * predictionFrames
@@ -241,8 +245,7 @@ class SimpleLineCounter {
         track: Track
     ): Detection {
 
-        val predictionFrames =
-            min(track.missed, 3)
+        val predictionFrames = min(track.missed, 3)
 
         val predictedX =
             track.x + track.velocityX * predictionFrames
