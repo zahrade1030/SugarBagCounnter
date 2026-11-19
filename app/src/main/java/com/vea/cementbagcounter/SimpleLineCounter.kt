@@ -38,45 +38,54 @@ class SimpleLineCounter {
 
     private var nextId = 1
 
-    // خط شمارش
+    // خطوط شمارش
     var topLine = 150f
         private set
 
-    // خط محدوده
     var bottomLine = 411f
+        private set
+
+    // محدوده ROI
+    var roiLeft = 80f
+        private set
+
+    var roiRight = 560f
         private set
 
     companion object {
 
         private const val MAX_MISSED_FRAMES = 12
-
         private const val MAX_DISPLAY_MISSED_FRAMES = 8
 
         private const val MIN_GATE_DISTANCE = 100f
-
         private const val GATE_FACTOR = 1.8f
 
         private const val POSITION_SMOOTHING = 0.65f
-
         private const val VELOCITY_SMOOTHING = 0.55f
-
         private const val MAX_VELOCITY = 120f
 
         private const val MIN_TRACK_HITS = 2
-
         private const val MIN_CONFIDENCE = 0.20f
-
         private const val MIN_IOU_FOR_MATCH = 0.05f
 
         private const val COUNT_LINE_TOLERANCE = 1f
+        private const val ROI_MARGIN = 0f
     }
 
     /**
-     * تنظیم خطوط
+     * تنظیم خطوط افقی
      */
     fun setLines(top: Float, bottom: Float) {
         topLine = min(top, bottom)
         bottomLine = max(top, bottom)
+    }
+
+    /**
+     * تنظیم محدوده عمودی ROI
+     */
+    fun setRoi(left: Float, right: Float) {
+        roiLeft = min(left, right)
+        roiRight = max(left, right)
     }
 
     /**
@@ -96,14 +105,16 @@ class SimpleLineCounter {
 
         var newCounts = 0
 
-        // حذف تشخیص‌های ضعیف
+        // فیلتر تشخیص‌های نامعتبر و خارج از ROI
         val validDetections = detections.filter {
+
             it.confidence >= MIN_CONFIDENCE &&
                     it.right > it.left &&
-                    it.bottom > it.top
+                    it.bottom > it.top &&
+                    isInsideRoi(it)
         }
 
-        // به‌روزرسانی سن Trackها
+        // افزایش سن Trackها
         tracks.values.forEach {
             it.age++
             it.missed++
@@ -111,13 +122,14 @@ class SimpleLineCounter {
 
         // پیش‌بینی موقعیت Trackها
         val predictions = tracks.values.map { track ->
+
             val predictedX = track.cx + track.vx
             val predictedY = track.cy + track.vy
 
             Pair(track, Pair(predictedX, predictedY))
         }
 
-        // ایجاد کاندیدهای اتصال
+        // کاندیدهای اتصال
         data class MatchCandidate(
             val trackId: Int,
             val detectionIndex: Int,
@@ -152,8 +164,12 @@ class SimpleLineCounter {
                     max(detection.bottom - detection.top, 1f)
 
                 val averageSize =
-                    (predictedWidth + predictedHeight +
-                            detectionWidth + detectionHeight) / 4f
+                    (
+                            predictedWidth +
+                                    predictedHeight +
+                                    detectionWidth +
+                                    detectionHeight
+                            ) / 4f
 
                 val gateDistance = max(
                     MIN_GATE_DISTANCE,
@@ -161,16 +177,17 @@ class SimpleLineCounter {
                 )
 
                 val iou = calculateIoU(
-                    track.detection,
+                    predictedDetection(track),
                     detection
                 )
 
-                // تشخیص‌های خیلی دور حذف می‌شوند
-                if (distance > gateDistance && iou < MIN_IOU_FOR_MATCH) {
+                if (
+                    distance > gateDistance &&
+                    iou < MIN_IOU_FOR_MATCH
+                ) {
                     continue
                 }
 
-                // امتیاز کمتر یعنی تطبیق بهتر
                 val normalizedDistance =
                     distance / gateDistance
 
@@ -179,15 +196,15 @@ class SimpleLineCounter {
 
                 candidates.add(
                     MatchCandidate(
-                        track.id,
-                        index,
-                        score
+                        trackId = track.id,
+                        detectionIndex = index,
+                        score = score
                     )
                 )
             }
         }
 
-        // بهترین تطبیق‌ها اول انتخاب می‌شوند
+        // بهترین تطبیق اول
         candidates.sortBy { it.score }
 
         val matchedTrackIds = mutableSetOf<Int>()
@@ -205,17 +222,16 @@ class SimpleLineCounter {
                 validDetections[candidate.detectionIndex]
 
             matchedTrackIds.add(candidate.trackId)
-
             matchedDetectionIndices.add(candidate.detectionIndex)
 
             updateTrack(track, detection)
 
-            // آماده شدن Track برای شمارش
+            // آماده‌سازی برای شمارش
             if (isInsideCountingZone(track.detection)) {
                 track.armed = true
             }
 
-            // شمارش لحظه برخورد با خط
+            // شمارش لحظه تماس با خط
             if (
                 track.armed &&
                 !track.counted &&
@@ -227,7 +243,7 @@ class SimpleLineCounter {
             }
         }
 
-        // ایجاد Track جدید برای تشخیص‌های بدون تطبیق
+        // ایجاد Track جدید
         for (index in validDetections.indices) {
 
             if (index in matchedDetectionIndices) continue
@@ -238,30 +254,27 @@ class SimpleLineCounter {
 
             tracks[track.id] = track
 
-            // اگر Track جدید معتبر باشد و با خط تماس داشته باشد
-            if (
-                track.armed &&
-                track.hits >= MIN_TRACK_HITS &&
-                touchesCountingLine(track.detection)
-            ) {
-                track.counted = true
-                newCounts++
-            }
+            // Track جدید از فریم اول شمارش نمی‌شود
+            // تا از شمارش اشتباه جلوگیری شود
         }
 
         // حذف Trackهای قدیمی
         val expiredIds = tracks.values
-            .filter { it.missed > MAX_MISSED_FRAMES }
+            .filter {
+                it.missed > MAX_MISSED_FRAMES ||
+                        !isTrackInsideRoi(it)
+            }
             .map { it.id }
 
         expiredIds.forEach {
             tracks.remove(it)
         }
 
-        // آماده‌سازی خروجی برای نمایش
+        // خروجی Trackهای قابل نمایش
         val visibleTracks = tracks.values
             .filter {
-                it.missed <= MAX_DISPLAY_MISSED_FRAMES
+                it.missed <= MAX_DISPLAY_MISSED_FRAMES &&
+                        isTrackInsideRoi(it)
             }
             .map { track ->
 
@@ -294,18 +307,15 @@ class SimpleLineCounter {
         val width = detection.right - detection.left
         val height = detection.bottom - detection.top
 
-        val track = Track(
+        return Track(
             id = nextId++,
             detection = detection,
             cx = detection.cx,
             cy = detection.cy,
             width = width,
-            height = height
+            height = height,
+            armed = isInsideCountingZone(detection)
         )
-
-        track.armed = isInsideCountingZone(detection)
-
-        return track
     }
 
     /**
@@ -365,7 +375,30 @@ class SimpleLineCounter {
     }
 
     /**
-     * آیا باکس در محدوده بین خطوط قرار دارد؟
+     * بررسی قرارگیری تشخیص در ROI
+     */
+    private fun isInsideRoi(
+        detection: Detection
+    ): Boolean {
+
+        return detection.right >= roiLeft + ROI_MARGIN &&
+                detection.left <= roiRight - ROI_MARGIN
+    }
+
+    /**
+     * بررسی قرارگیری Track در ROI
+     */
+    private fun isTrackInsideRoi(
+        track: Track
+    ): Boolean {
+
+        val predicted = predictedDetection(track)
+
+        return isInsideRoi(predicted)
+    }
+
+    /**
+     * بررسی محدوده خطوط شمارش
      */
     private fun isInsideCountingZone(
         detection: Detection
@@ -377,9 +410,6 @@ class SimpleLineCounter {
 
     /**
      * بررسی تماس با خط شمارش
-     *
-     * شمارش با برخورد باکس با خط انجام می‌شود،
-     * نه بعد از عبور کامل آن.
      */
     private fun touchesCountingLine(
         detection: Detection
@@ -390,14 +420,39 @@ class SimpleLineCounter {
     }
 
     /**
-     * پیش‌بینی موقعیت Track گم‌شده
+     * پیش‌بینی موقعیت Track
      */
     private fun predictedDetection(
         track: Track
     ): Detection {
 
-        val predictedCx = track.cx + track.vx * track.missed
-        val predictedCy = track.cy + track.vy * track.missed
+        val predictedCx =
+            track.cx + track.vx * track.missed
+
+        val predictedCy =
+            track.cy + track.vy * track.missed
+
+        val halfWidth = track.width / 2f
+        val halfHeight = track.height / 2f
+
+        return Detection(
+            left = predictedCx - halfWidth,
+            top = predictedCy - halfHeight,
+            right = predictedCx + halfWidth,
+            bottom = predictedCy + halfHeight,
+            confidence = track.detection.confidence
+        )
+    }
+
+    /**
+     * پیش‌بینی یک فریم
+     */
+    private fun predictedDetection(
+        track: Track
+    ): Detection {
+
+        val predictedCx = track.cx + track.vx
+        val predictedCy = track.cy + track.vy
 
         val halfWidth = track.width / 2f
         val halfHeight = track.height / 2f
@@ -428,7 +483,7 @@ class SimpleLineCounter {
     }
 
     /**
-     * محاسبه IoU بین دو باکس
+     * محاسبه IoU
      */
     private fun calculateIoU(
         a: Detection,
@@ -458,7 +513,8 @@ class SimpleLineCounter {
             max(0f, b.right - b.left) *
                     max(0f, b.bottom - b.top)
 
-        val unionArea = areaA + areaB - intersectionArea
+        val unionArea =
+            areaA + areaB - intersectionArea
 
         if (unionArea <= 0f) return 0f
 
