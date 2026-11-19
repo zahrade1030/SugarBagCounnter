@@ -17,6 +17,11 @@
         android:supportsRtl="true">
 
         <activity
+            android:name=".LicenseActivity"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
             android:name=".MainActivity"
             android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize|keyboardHidden"
