@@ -102,7 +102,6 @@ class DetectionOverlay(context: Context) : View(context) {
         w: Int,
         h: Int
     ) {
-
         detections = list
 
         imageW = w.toFloat()
@@ -122,11 +121,10 @@ class DetectionOverlay(context: Context) : View(context) {
         w: Int,
         h: Int
     ) {
-
         trackedDetections = list
 
         imageW = w.toFloat()
-        imageH = h
+        imageH = h.toFloat()
 
         showingTracked = true
 
@@ -149,12 +147,10 @@ class DetectionOverlay(context: Context) : View(context) {
     }
 
     private fun offsetX(scale: Float): Float {
-
         return (width - imageW * scale) / 2f
     }
 
     private fun offsetY(scale: Float): Float {
-
         return (height - imageH * scale) / 2f
     }
 
@@ -275,7 +271,7 @@ class DetectionOverlay(context: Context) : View(context) {
         val top = (y - labelHeight / 2f)
             .coerceIn(
                 0f,
-                height.toFloat() - labelHeight
+                (height.toFloat() - labelHeight).coerceAtLeast(0f)
             )
 
         canvas.drawRoundRect(
