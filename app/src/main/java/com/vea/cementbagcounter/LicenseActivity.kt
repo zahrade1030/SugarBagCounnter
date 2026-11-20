@@ -1,3 +1,4 @@
+
 package com.vea.cementbagcounter
 
 import android.app.Activity
@@ -16,7 +17,7 @@ import android.graphics.drawable.GradientDrawable
 class LicenseActivity : Activity() {
 
     private val gold = Color.rgb(212, 175, 55)
-    private val background = Color.rgb(12, 12, 12)
+    private val backgroundColor = Color.rgb(12, 12, 12)
     private val card = Color.rgb(27, 27, 27)
     private val white = Color.WHITE
     private val gray = Color.rgb(160, 160, 160)
@@ -53,7 +54,7 @@ class LicenseActivity : Activity() {
         root.orientation = LinearLayout.VERTICAL
         root.gravity = Gravity.CENTER
         root.setPadding(28, 32, 28, 32)
-        root.setBackgroundColor(background)
+        root.setBackgroundColor(backgroundColor)
 
         val scroll = ScrollView(this)
         scroll.isFillViewport = true
@@ -448,8 +449,9 @@ class LicenseActivity : Activity() {
 
             typeface = Typeface.DEFAULT_BOLD
 
+            // FIX: Explicit color avoids background name/type conflict.
             setTextColor(
-                if (primary) background else gold
+                if (primary) Color.rgb(12, 12, 12) else gold
             )
 
             background = roundedBackground(
