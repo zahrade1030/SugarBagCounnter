@@ -20,10 +20,21 @@ class LicenseActivity : Activity() {
     private val card = Color.rgb(27, 27, 27)
     private val white = Color.WHITE
     private val gray = Color.rgb(160, 160, 160)
+    private val red = Color.rgb(235, 75, 75)
+    private val green = Color.rgb(75, 210, 120)
 
     private lateinit var deviceIdText: TextView
     private lateinit var licenseInput: EditText
     private lateinit var statusText: TextView
+    private lateinit var activateButton: Button
+
+    private val isEnglish: Boolean
+        get() = getSharedPreferences("app_settings", MODE_PRIVATE)
+            .getString("language", "fa") == "en"
+
+    private fun tr(fa: String, en: String): String {
+        return if (isEnglish) en else fa
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,35 +52,93 @@ class LicenseActivity : Activity() {
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
         root.gravity = Gravity.CENTER
-        root.setPadding(32, 40, 32, 40)
+        root.setPadding(28, 32, 28, 32)
         root.setBackgroundColor(background)
 
         val scroll = ScrollView(this)
+        scroll.isFillViewport = true
         scroll.addView(root)
+
+        // Language button
+
+        val languageButton = Button(this)
+        languageButton.text = if (isEnglish) "فارسی" else "English"
+        languageButton.setTextColor(gold)
+        languageButton.background = roundedBackground(
+            Color.rgb(35, 35, 35),
+            12
+        )
+
+        val languageParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            45
+        )
+
+        languageParams.gravity = Gravity.END
+
+        root.addView(languageButton, languageParams)
+
+        languageButton.setOnClickListener {
+
+            val newLanguage = if (isEnglish) "fa" else "en"
+
+            getSharedPreferences(
+                "app_settings",
+                MODE_PRIVATE
+            ).edit()
+                .putString("language", newLanguage)
+                .apply()
+
+            recreate()
+        }
+
+        addSpace(root, 15)
+
+        // Logo / Brand
 
         val title = TextView(this)
         title.text = "CRYSTAL.BIN"
-        title.textSize = 30f
+        title.textSize = 32f
         title.setTextColor(gold)
         title.gravity = Gravity.CENTER
         title.typeface = Typeface.DEFAULT_BOLD
 
         root.addView(title)
 
+        addSpace(root, 8)
+
         val subtitle = TextView(this)
-        subtitle.text = "شمارشگر صنعتی کیسه قند"
-        subtitle.textSize = 18f
+        subtitle.text = tr(
+            "شمارشگر صنعتی کیسه قند",
+            "Industrial Sugar Bag Counter"
+        )
+        subtitle.textSize = 17f
         subtitle.setTextColor(white)
         subtitle.gravity = Gravity.CENTER
 
         root.addView(subtitle)
 
+        addSpace(root, 10)
+
+        val description = TextView(this)
+        description.text = tr(
+            "سیستم هوشمند شمارش و مدیریت تولید",
+            "Intelligent Production Counting System"
+        )
+        description.textSize = 13f
+        description.setTextColor(gray)
+        description.gravity = Gravity.CENTER
+
+        root.addView(description)
+
         addSpace(root, 30)
+
+        // Main card
 
         val cardView = LinearLayout(this)
         cardView.orientation = LinearLayout.VERTICAL
-        cardView.setPadding(24, 24, 24, 24)
-        cardView.background = roundedBackground(card, 20)
+        cardView.setPadding(22, 24, 22, 24)
+        cardView.background = roundedBackground(card, 22)
 
         root.addView(
             cardView,
@@ -79,21 +148,45 @@ class LicenseActivity : Activity() {
             )
         )
 
+        // Heading
+
         val heading = TextView(this)
-        heading.text = "فعال‌سازی نرم‌افزار"
-        heading.textSize = 20f
+        heading.text = tr(
+            "فعال‌سازی نرم‌افزار",
+            "Software Activation"
+        )
+        heading.textSize = 21f
         heading.setTextColor(gold)
         heading.gravity = Gravity.CENTER
         heading.typeface = Typeface.DEFAULT_BOLD
 
         cardView.addView(heading)
 
-        addSpace(cardView, 20)
+        addSpace(cardView, 10)
+
+        val activationDescription = TextView(this)
+        activationDescription.text = tr(
+            "برای استفاده از نرم‌افزار، لایسنس اختصاصی دستگاه را وارد کنید.",
+            "Enter your device-specific license to unlock the software."
+        )
+        activationDescription.textSize = 13f
+        activationDescription.setTextColor(gray)
+        activationDescription.gravity = Gravity.CENTER
+
+        cardView.addView(activationDescription)
+
+        addSpace(cardView, 25)
+
+        // Device ID
 
         val deviceLabel = TextView(this)
-        deviceLabel.text = "شناسه اختصاصی دستگاه"
-        deviceLabel.setTextColor(gray)
+        deviceLabel.text = tr(
+            "شناسه اختصاصی دستگاه",
+            "Device ID"
+        )
+        deviceLabel.setTextColor(gold)
         deviceLabel.textSize = 14f
+        deviceLabel.typeface = Typeface.DEFAULT_BOLD
 
         cardView.addView(deviceLabel)
 
@@ -105,17 +198,33 @@ class LicenseActivity : Activity() {
         deviceIdText.setTextColor(white)
         deviceIdText.gravity = Gravity.CENTER
         deviceIdText.setPadding(12, 16, 12, 16)
+        deviceIdText.typeface = Typeface.MONOSPACE
         deviceIdText.background = roundedBackground(
             Color.rgb(40, 40, 40),
-            10
+            12
         )
 
         cardView.addView(deviceIdText)
 
-        addSpace(cardView, 10)
+        addSpace(cardView, 12)
 
-        val copyButton = Button(this)
-        copyButton.text = "کپی شناسه دستگاه"
+        // Copy Device ID
+
+        val copyButton = createButton(
+            tr(
+                "کپی شناسه دستگاه",
+                "Copy Device ID"
+            ),
+            false
+        )
+
+        cardView.addView(
+            copyButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                52
+            )
+        )
 
         copyButton.setOnClickListener {
 
@@ -132,36 +241,48 @@ class LicenseActivity : Activity() {
 
             Toast.makeText(
                 this,
-                "شناسه دستگاه کپی شد",
+                tr(
+                    "شناسه دستگاه کپی شد",
+                    "Device ID copied"
+                ),
                 Toast.LENGTH_SHORT
             ).show()
         }
 
-        cardView.addView(copyButton)
+        addSpace(cardView, 28)
 
-        addSpace(cardView, 24)
+        // License input
 
         val licenseLabel = TextView(this)
-        licenseLabel.text = "کد لایسنس"
-        licenseLabel.setTextColor(gray)
+        licenseLabel.text = tr(
+            "کد لایسنس",
+            "License Key"
+        )
+        licenseLabel.setTextColor(gold)
         licenseLabel.textSize = 14f
+        licenseLabel.typeface = Typeface.DEFAULT_BOLD
 
         cardView.addView(licenseLabel)
 
         addSpace(cardView, 8)
 
         licenseInput = EditText(this)
-        licenseInput.hint = "کد فعال‌سازی را وارد کنید"
+        licenseInput.hint = tr(
+            "کد فعال‌سازی را وارد کنید",
+            "Enter your activation code"
+        )
         licenseInput.setTextColor(white)
         licenseInput.setHintTextColor(gray)
-        licenseInput.textSize = 13f
+        licenseInput.textSize = 12f
         licenseInput.setPadding(16, 18, 16, 18)
-        licenseInput.setBackgroundColor(
-            Color.rgb(45, 45, 45)
+        licenseInput.background = roundedBackground(
+            Color.rgb(40, 40, 40),
+            12
         )
 
         licenseInput.isSingleLine = false
-        licenseInput.minLines = 2
+        licenseInput.minLines = 3
+        licenseInput.maxLines = 6
 
         cardView.addView(
             licenseInput,
@@ -171,14 +292,17 @@ class LicenseActivity : Activity() {
             )
         )
 
-        addSpace(cardView, 20)
+        addSpace(cardView, 22)
 
-        val activateButton = Button(this)
-        activateButton.text = "فعال‌سازی و ورود به برنامه"
+        // Activate button
 
-        activateButton.setOnClickListener {
-            activateLicense()
-        }
+        activateButton = createButton(
+            tr(
+                "فعال‌سازی و ورود به برنامه",
+                "Activate & Enter App"
+            ),
+            true
+        )
 
         cardView.addView(
             activateButton,
@@ -188,26 +312,48 @@ class LicenseActivity : Activity() {
             )
         )
 
-        addSpace(cardView, 16)
+        activateButton.setOnClickListener {
+            activateLicense()
+        }
+
+        addSpace(cardView, 18)
+
+        // Status
 
         statusText = TextView(this)
         statusText.text = ""
         statusText.textSize = 14f
         statusText.gravity = Gravity.CENTER
-        statusText.setTextColor(Color.RED)
-        statusText.setPadding(8, 8, 8, 8)
+        statusText.setTextColor(red)
+        statusText.setPadding(8, 12, 8, 12)
 
         cardView.addView(statusText)
 
-        addSpace(root, 20)
+        addSpace(root, 25)
+
+        // Footer
 
         val footer = TextView(this)
-        footer.text = "CRYSTAL.BIN • Industrial Vision System"
-        footer.textSize = 12f
-        footer.setTextColor(gray)
+        footer.text = "CRYSTAL.BIN"
+        footer.textSize = 14f
+        footer.setTextColor(gold)
         footer.gravity = Gravity.CENTER
+        footer.typeface = Typeface.DEFAULT_BOLD
 
         root.addView(footer)
+
+        addSpace(root, 5)
+
+        val footerDescription = TextView(this)
+        footerDescription.text = tr(
+            "سیستم هوشمند صنعتی",
+            "Industrial Vision System"
+        )
+        footerDescription.textSize = 11f
+        footerDescription.setTextColor(gray)
+        footerDescription.gravity = Gravity.CENTER
+
+        root.addView(footerDescription)
 
         setContentView(scroll)
     }
@@ -217,14 +363,19 @@ class LicenseActivity : Activity() {
         val code = licenseInput.text.toString().trim()
 
         statusText.text = ""
-        statusText.setTextColor(Color.RED)
+        statusText.setTextColor(red)
 
         if (code.isEmpty()) {
-            statusText.text = "لطفاً کد فعال‌سازی را وارد کنید"
+
+            statusText.text = tr(
+                "لطفاً کد فعال‌سازی را وارد کنید",
+                "Please enter your activation code"
+            )
+
             return
         }
 
-        activateButtonLoading(false)
+        setLoading(true)
 
         val success = try {
             LicenseManager.activate(this, code)
@@ -232,14 +383,23 @@ class LicenseActivity : Activity() {
             false
         }
 
+        setLoading(false)
+
         if (success) {
 
-            statusText.setTextColor(Color.GREEN)
-            statusText.text = "فعال‌سازی موفق بود"
+            statusText.setTextColor(green)
+
+            statusText.text = tr(
+                "فعال‌سازی موفق بود",
+                "Activation successful"
+            )
 
             Toast.makeText(
                 this,
-                "فعال‌سازی موفق بود",
+                tr(
+                    "فعال‌سازی موفق بود",
+                    "Activation successful"
+                ),
                 Toast.LENGTH_LONG
             ).show()
 
@@ -247,14 +407,58 @@ class LicenseActivity : Activity() {
 
         } else {
 
-            statusText.setTextColor(Color.RED)
-            statusText.text =
-                "کد نامعتبر است، منقضی شده یا متعلق به دستگاه دیگری است"
+            statusText.setTextColor(red)
+
+            statusText.text = tr(
+                "کد نامعتبر است، منقضی شده یا متعلق به دستگاه دیگری است",
+                "Invalid, expired, or belongs to another device"
+            )
         }
     }
 
-    private fun activateButtonLoading(enabled: Boolean) {
-        // Placeholder for future loading state.
+    private fun setLoading(loading: Boolean) {
+
+        activateButton.isEnabled = !loading
+
+        activateButton.text = if (loading) {
+            tr(
+                "در حال بررسی لایسنس...",
+                "Verifying license..."
+            )
+        } else {
+            tr(
+                "فعال‌سازی و ورود به برنامه",
+                "Activate & Enter App"
+            )
+        }
+
+        activateButton.alpha = if (loading) 0.6f else 1f
+    }
+
+    private fun createButton(
+        text: String,
+        primary: Boolean
+    ): Button {
+
+        return Button(this).apply {
+
+            this.text = text
+
+            textSize = 14f
+
+            typeface = Typeface.DEFAULT_BOLD
+
+            setTextColor(
+                if (primary) background else gold
+            )
+
+            background = roundedBackground(
+                if (primary) gold else Color.rgb(40, 40, 40),
+                14
+            )
+
+            isAllCaps = false
+        }
     }
 
     private fun openMainActivity() {
@@ -269,6 +473,7 @@ class LicenseActivity : Activity() {
             Intent.FLAG_ACTIVITY_CLEAR_TASK
 
         startActivity(intent)
+
         finish()
     }
 
@@ -294,9 +499,15 @@ class LicenseActivity : Activity() {
     ): GradientDrawable {
 
         return GradientDrawable().apply {
+
             setColor(color)
+
             cornerRadius = radius.toFloat()
-            setStroke(1, gold)
+
+            setStroke(
+                1,
+                gold
+            )
         }
     }
 }
