@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.view.Gravity
@@ -47,8 +48,8 @@ class LicenseActivity : Activity() {
         scroll.addView(root)
 
         val title = TextView(this)
-        title.text = "VEA"
-        title.textSize = 34f
+        title.text = "CRYSTAL.BIN"
+        title.textSize = 30f
         title.setTextColor(gold)
         title.gravity = Gravity.CENTER
         title.typeface = Typeface.DEFAULT_BOLD
@@ -131,7 +132,7 @@ class LicenseActivity : Activity() {
 
             Toast.makeText(
                 this,
-                "شناسه کپی شد",
+                "شناسه دستگاه کپی شد",
                 Toast.LENGTH_SHORT
             ).show()
         }
@@ -141,7 +142,7 @@ class LicenseActivity : Activity() {
         addSpace(cardView, 24)
 
         val licenseLabel = TextView(this)
-        licenseLabel.text = "کد فعال‌سازی"
+        licenseLabel.text = "کد لایسنس"
         licenseLabel.setTextColor(gray)
         licenseLabel.textSize = 14f
 
@@ -150,14 +151,17 @@ class LicenseActivity : Activity() {
         addSpace(cardView, 8)
 
         licenseInput = EditText(this)
-        licenseInput.hint = "کد لایسنس را وارد کنید"
+        licenseInput.hint = "کد فعال‌سازی را وارد کنید"
         licenseInput.setTextColor(white)
         licenseInput.setHintTextColor(gray)
-        licenseInput.textSize = 14f
+        licenseInput.textSize = 13f
         licenseInput.setPadding(16, 18, 16, 18)
         licenseInput.setBackgroundColor(
             Color.rgb(45, 45, 45)
         )
+
+        licenseInput.isSingleLine = false
+        licenseInput.minLines = 2
 
         cardView.addView(
             licenseInput,
@@ -170,7 +174,7 @@ class LicenseActivity : Activity() {
         addSpace(cardView, 20)
 
         val activateButton = Button(this)
-        activateButton.text = "فعال‌سازی"
+        activateButton.text = "فعال‌سازی و ورود به برنامه"
 
         activateButton.setOnClickListener {
             activateLicense()
@@ -180,7 +184,7 @@ class LicenseActivity : Activity() {
             activateButton,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                55
+                58
             )
         )
 
@@ -191,13 +195,14 @@ class LicenseActivity : Activity() {
         statusText.textSize = 14f
         statusText.gravity = Gravity.CENTER
         statusText.setTextColor(Color.RED)
+        statusText.setPadding(8, 8, 8, 8)
 
         cardView.addView(statusText)
 
         addSpace(root, 20)
 
         val footer = TextView(this)
-        footer.text = "VEA • Industrial Vision System"
+        footer.text = "CRYSTAL.BIN • Industrial Vision System"
         footer.textSize = 12f
         footer.setTextColor(gray)
         footer.gravity = Gravity.CENTER
@@ -211,19 +216,26 @@ class LicenseActivity : Activity() {
 
         val code = licenseInput.text.toString().trim()
 
+        statusText.text = ""
+        statusText.setTextColor(Color.RED)
+
         if (code.isEmpty()) {
-
-            statusText.text = "کد فعال‌سازی را وارد کنید"
-
+            statusText.text = "لطفاً کد فعال‌سازی را وارد کنید"
             return
         }
 
-        val success = LicenseManager.activate(
-            this,
-            code
-        )
+        activateButtonLoading(false)
+
+        val success = try {
+            LicenseManager.activate(this, code)
+        } catch (e: Exception) {
+            false
+        }
 
         if (success) {
+
+            statusText.setTextColor(Color.GREEN)
+            statusText.text = "فعال‌سازی موفق بود"
 
             Toast.makeText(
                 this,
@@ -235,20 +247,28 @@ class LicenseActivity : Activity() {
 
         } else {
 
+            statusText.setTextColor(Color.RED)
             statusText.text =
-                "کد نامعتبر است یا متعلق به دستگاه دیگری است"
+                "کد نامعتبر است، منقضی شده یا متعلق به دستگاه دیگری است"
         }
+    }
+
+    private fun activateButtonLoading(enabled: Boolean) {
+        // Placeholder for future loading state.
     }
 
     private fun openMainActivity() {
 
-        startActivity(
-            android.content.Intent(
-                this,
-                MainActivity::class.java
-            )
+        val intent = Intent(
+            this,
+            MainActivity::class.java
         )
 
+        intent.flags =
+            Intent.FLAG_ACTIVITY_NEW_TASK or
+            Intent.FLAG_ACTIVITY_CLEAR_TASK
+
+        startActivity(intent)
         finish()
     }
 
