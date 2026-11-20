@@ -1,3 +1,4 @@
+
 package com.vea.cementbagcounter
 
 import android.content.Context
@@ -12,28 +13,26 @@ import java.security.KeyFactory
 import javax.crypto.KeyGenerator
 import javax.crypto.Mac
 import javax.crypto.SecretKey
-import javax.crypto.spec.SecretKeySpec
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import java.util.Calendar
 
 object LicenseManager {
 
-    private const val PREFS_NAME = "vea_license_secure"
+    private const val PREFS_NAME = "crystal_license_secure"
 
     private const val KEY_LICENSE = "license"
     private const val KEY_LAST_TIME = "last_time"
     private const val KEY_TIME_MAC = "time_mac"
 
-    private const val PRODUCT_ID = "VEA_SUGAR_COUNTER"
+    // CRYSTAL.BIN PRODUCT
+    private const val PRODUCT_ID = "CRYSTAL_BAG_COUNTER"
     private const val LICENSE_VERSION = 1
-
-    private const val LICENSE_DURATION_MONTHS = 36
 
     private const val CLOCK_TOLERANCE = 5 * 60 * 1000L
 
     private const val KEYSTORE_NAME = "AndroidKeyStore"
-    private const val HMAC_ALIAS = "VEA_LICENSE_TIME_KEY"
+    private const val HMAC_ALIAS = "CRYSTAL_LICENSE_TIME_KEY"
 
     private const val SIGNATURE_ALGORITHM = "SHA256withRSA"
     private const val HMAC_ALGORITHM = "HmacSHA256"
@@ -41,10 +40,12 @@ object LicenseManager {
     /*
      * Public key only.
      * Private key must NEVER be included in the Android application.
+     *
+     * This key is preserved from the original LicenseManager.
      */
 
     private const val PUBLIC_KEY_BASE64 =
-    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuI3IqY+X0dkdOSmxAmxJtDLiKuiSuNRHlmtaAWBU2u01KJEnhYwLjOgNgFBsp6hAduIyuEAqvrFqqBptl8YF+Ar59HIETNfdW+SzTtrwlxoUzMH0/3JBUksTs1AE2M2pvmN2HhTLz20GaeADZxqGCzrFAVLLmzd7NIY96c988TRDK0nyBx0yGkcBOgfBuju7oXTRFEFa6q/DVkmYSX64dpFnPo2PxCbJ5H2BccrZfC/jxcRu0B1034+NMYypqbrBrh/AR9UlqI8QomN3t1ZtUQ0g/7KUpVTVm0ZUyq3AruranUCQMWKDw/OS6l7q9UkcTBuHYAFeouPH/RvvbBW7OQIDAQAB"
+        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuI3IqY+X0dkdOSmxAmxJtDLiKuiSuNRHlmtaAWBU2u01KJEnhYwLjOgNgFBsp6hAduIyuEAqvrFqqBptl8YF+Ar59HIETNfdW+SzTtrwlxoUzMH0/3JBUksTs1AE2M2pvmN2HhTLz20GaeADZxqGCzrFAVLLmzd7NIY96c988TRDK0nyBx0yGkcBOgfBuju7oXTRFEFa6q/DVkmYSX64dpFnPo2PxCbJ5H2BccrZfC/jxcRu0B1034+NMYypqbrBrh/AR9UlqI8QomN3t1ZtUQ0g/7KUpVTVm0ZUyq3AruranUCQMWKDw/OS6l7q9UkcTBuHYAFeouPH/RvvbBW7OQIDAQAB"
 
     enum class LicenseStatus {
         ACTIVE,
@@ -139,8 +140,9 @@ object LicenseManager {
 
     // --------------------------------------------------
     // LICENSE PARSING
+    //
     // FORMAT:
-    // VEA1.BASE64_PAYLOAD.BASE64_SIGNATURE
+    // CRYSTAL1.BASE64_PAYLOAD.BASE64_SIGNATURE
     // --------------------------------------------------
 
     private data class ParsedLicense(
@@ -163,7 +165,7 @@ object LicenseManager {
 
             if (parts.size != 3) return null
 
-            if (parts[0] != "VEA1") return null
+            if (parts[0] != "CRYSTAL1") return null
 
             val payloadBytes = Base64.decode(
                 parts[1],
@@ -245,13 +247,8 @@ object LicenseManager {
             return LicenseStatus.INVALID
         }
 
-        val maxExpiry = calculateExpiryDate(
-            license.issuedAt
-        )
-
-        if (license.expiresAt > maxExpiry) {
-            return LicenseStatus.INVALID
-        }
+        // No fixed 36-month limit.
+        // Expiry is determined by the signed license itself.
 
         val now = System.currentTimeMillis()
 
@@ -546,26 +543,6 @@ object LicenseManager {
         return getLicenseInfo(
             context
         ).activationDate
-    }
-
-    // --------------------------------------------------
-    // 36 MONTH EXPIRY
-    // --------------------------------------------------
-
-    private fun calculateExpiryDate(
-        issuedAt: Long
-    ): Long {
-
-        val calendar = Calendar.getInstance()
-
-        calendar.timeInMillis = issuedAt
-
-        calendar.add(
-            Calendar.MONTH,
-            LICENSE_DURATION_MONTHS
-        )
-
-        return calendar.timeInMillis
     }
 
     // --------------------------------------------------
