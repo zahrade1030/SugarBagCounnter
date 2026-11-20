@@ -1,4 +1,5 @@
 package com.vea.cementbagcounter
+
 import android.content.Intent
 import android.Manifest
 import android.content.pm.PackageManager
@@ -57,6 +58,7 @@ class MainActivity : AppCompatActivity() {
 
     private var guideVisible = true
     private var guideOpacity = 48
+    private var guideZoom = 100
 
     private lateinit var countText: TextView
     private lateinit var statusText: TextView
@@ -81,6 +83,13 @@ class MainActivity : AppCompatActivity() {
 
     private var pendingExcelData: ByteArray? = null
 
+    private val isEnglish: Boolean
+        get() = prefs.getString("language", "fa") == "en"
+
+    private fun tr(fa: String, en: String): String {
+        return if (isEnglish) en else fa
+    }
+
     private val excelLauncher =
         registerForActivityResult(
             ActivityResultContracts.CreateDocument(
@@ -101,7 +110,10 @@ class MainActivity : AppCompatActivity() {
             if (granted) {
                 startCamera()
             } else if (::statusText.isInitialized) {
-                statusText.text = "مجوز دوربین داده نشد"
+                statusText.text = tr(
+                    "مجوز دوربین داده نشد",
+                    "Camera permission denied"
+                )
             }
         }
 
@@ -111,11 +123,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // License verification gate
+
         if (!LicenseManager.isActivated(this)) {
-            startActivity(
-                Intent(this, LicenseActivity::class.java)
-            )
+            startActivity(Intent(this, LicenseActivity::class.java))
             finish()
             return
         }
@@ -126,11 +136,14 @@ class MainActivity : AppCompatActivity() {
             Log.e("SugarCounter", "Model initialization failed", e)
 
             AlertDialog.Builder(this)
-                .setTitle("خطا در بارگذاری مدل")
+                .setTitle(tr("خطا در بارگذاری مدل", "Model Loading Error"))
                 .setMessage(
-                    "فایل مدل best.onnx در برنامه یافت نشد یا قابل بارگذاری نیست.\n\n${e.message}"
+                    tr(
+                        "فایل مدل best.onnx در برنامه یافت نشد یا قابل بارگذاری نیست.\n\n${e.message}",
+                        "The best.onnx model was not found or could not be loaded.\n\n${e.message}"
+                    )
                 )
-                .setPositiveButton("بستن") { _, _ ->
+                .setPositiveButton(tr("بستن", "Close")) { _, _ ->
                     finish()
                 }
                 .setCancelable(false)
@@ -140,7 +153,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         buildUi()
-
         restoreLineSettings()
 
         running = true
@@ -180,9 +192,7 @@ class MainActivity : AppCompatActivity() {
             )
 
             background = GradientDrawable().apply {
-                setColor(
-                    if (primary) industrialGold else industrialButton
-                )
+                setColor(if (primary) industrialGold else industrialButton)
                 cornerRadius = dp(14).toFloat()
                 setStroke(
                     dp(1),
@@ -208,7 +218,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         val header = TextView(this).apply {
-            text = "شمارشگر هوشمند کیسه‌های قند"
+            text = tr(
+                "شمارشگر هوشمند کیسه‌های قند",
+                "Smart Sugar Bag Counter"
+            )
             textSize = 21f
             setTextColor(industrialLightGold)
             gravity = Gravity.CENTER
@@ -222,6 +235,7 @@ class MainActivity : AppCompatActivity() {
 
         guideVisible = prefs.getBoolean("guide_visible", true)
         guideOpacity = prefs.getInt("guide_opacity", 48).coerceIn(0, 255)
+        guideZoom = prefs.getInt("guide_zoom", 100).coerceIn(50, 200)
 
         guideImage = ImageView(this).apply {
             scaleType = ImageView.ScaleType.FIT_CENTER
@@ -229,7 +243,10 @@ class MainActivity : AppCompatActivity() {
             visibility = if (guideVisible) View.VISIBLE else View.GONE
             isClickable = false
             isFocusable = false
-            contentDescription = "تصویر راهنمای تنظیم دوربین"
+            contentDescription = tr(
+                "تصویر راهنمای تنظیم دوربین",
+                "Camera alignment guide"
+            )
         }
 
         loadGuideImage()
@@ -273,8 +290,11 @@ class MainActivity : AppCompatActivity() {
 
             if (width > 0 && height > 0) {
 
-                val guideWidth = (width * 0.88f).toInt()
-                val guideHeight = (height * 0.82f).toInt()
+                val guideWidth =
+                    (width * 0.88f * guideZoom / 100f).toInt()
+
+                val guideHeight =
+                    (height * 0.82f * guideZoom / 100f).toInt()
 
                 guideImage.layoutParams = FrameLayout.LayoutParams(
                     guideWidth,
@@ -287,7 +307,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         countText = TextView(this).apply {
-            text = "تعداد: 0"
+            text = tr("تعداد: 0", "Count: 0")
             textSize = 30f
             setTextColor(industrialLightGold)
             gravity = Gravity.CENTER
@@ -296,7 +316,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         statusText = TextView(this).apply {
-            text = "خطوط شمارش را تنظیم کنید"
+            text = tr(
+                "خطوط شمارش را تنظیم کنید",
+                "Configure counting lines"
+            )
             textSize = 14f
             setTextColor(Color.LTGRAY)
             gravity = Gravity.CENTER
@@ -326,7 +349,7 @@ class MainActivity : AppCompatActivity() {
 
             val button = createIndustrialButton(
                 title = label,
-                primary = label == "شروع شمارش"
+                primary = label == tr("شروع شمارش", "Start Counting")
             ).apply {
                 setOnClickListener { action() }
             }
@@ -343,27 +366,27 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        addActionButton(firstRow, "تنظیم خطوط") {
+        addActionButton(firstRow, tr("تنظیم خطوط", "Setup Lines")) {
             enterSetupMode()
         }
 
-        addActionButton(firstRow, "شروع شمارش") {
+        addActionButton(firstRow, tr("شروع شمارش", "Start Counting")) {
             startCounting()
         }
 
-        addActionButton(firstRow, "توقف") {
+        addActionButton(firstRow, tr("توقف", "Stop")) {
             stopCounting()
         }
 
-        addActionButton(secondRow, "ریست") {
+        addActionButton(secondRow, tr("ریست", "Reset")) {
             resetCounting()
         }
 
-        addActionButton(secondRow, "تاریخچه") {
+        addActionButton(secondRow, tr("تاریخچه", "History")) {
             showHistory()
         }
 
-        addActionButton(secondRow, "آمار") {
+        addActionButton(secondRow, tr("آمار", "Statistics")) {
             showStatistics()
         }
 
@@ -372,14 +395,27 @@ class MainActivity : AppCompatActivity() {
         }
 
         val guideSettingsButton =
-            createIndustrialButton("تنظیم تصویر راهنما").apply {
+            createIndustrialButton(
+                tr("تنظیم تصویر راهنما", "Guide Image Settings")
+            ).apply {
                 setOnClickListener {
                     showGuideSettings()
                 }
             }
 
+        val languageButton =
+            createIndustrialButton(
+                tr("زبان / Language", "Language / زبان")
+            ).apply {
+                setOnClickListener {
+                    showLanguageSettings()
+                }
+            }
+
         val aboutButton =
-            createIndustrialButton("درباره برنامه").apply {
+            createIndustrialButton(
+                tr("درباره برنامه", "About")
+            ).apply {
                 setOnClickListener {
                     showAbout()
                 }
@@ -390,6 +426,16 @@ class MainActivity : AppCompatActivity() {
 
         controls.addView(
             guideSettingsButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(52)
+            ).apply {
+                setMargins(dp(3), dp(3), dp(3), dp(3))
+            }
+        )
+
+        controls.addView(
+            languageButton,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(52)
@@ -427,6 +473,42 @@ class MainActivity : AppCompatActivity() {
     }
 
     // --------------------------------------------------
+    // زبان
+    // --------------------------------------------------
+
+    private fun showLanguageSettings() {
+
+        val options = arrayOf(
+            "فارسی",
+            "English"
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle("Language / زبان")
+            .setSingleChoiceItems(
+                options,
+                if (isEnglish) 1 else 0
+            ) { dialog, which ->
+
+                prefs.edit()
+                    .putString(
+                        "language",
+                        if (which == 1) "en" else "fa"
+                    )
+                    .apply()
+
+                dialog.dismiss()
+
+                recreate()
+            }
+            .setNegativeButton(
+                tr("انصراف", "Cancel"),
+                null
+            )
+            .show()
+    }
+
+    // --------------------------------------------------
     // تنظیم خطوط و محدوده ROI
     // --------------------------------------------------
 
@@ -445,8 +527,10 @@ class MainActivity : AppCompatActivity() {
 
         restoreLineSettings()
 
-        statusText.text =
-            "خطوط افقی و محدوده شمارش را تنظیم کنید"
+        statusText.text = tr(
+            "خطوط افقی و محدوده شمارش را تنظیم کنید",
+            "Adjust the counting lines and counting area"
+        )
     }
 
     private fun startCounting() {
@@ -471,7 +555,10 @@ class MainActivity : AppCompatActivity() {
 
         sessionSaved = false
 
-        statusText.text = "شمارش فعال است"
+        statusText.text = tr(
+            "شمارش فعال است",
+            "Counting is active"
+        )
     }
 
     private fun saveLineSettings() {
@@ -553,7 +640,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         val title = TextView(this).apply {
-            text = "تنظیم تصویر راهنما"
+            text = tr(
+                "تنظیم تصویر راهنما",
+                "Guide Image Settings"
+            )
             textSize = 19f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(industrialLightGold)
@@ -569,7 +659,10 @@ class MainActivity : AppCompatActivity() {
         )
 
         val guideSwitch = Switch(this).apply {
-            text = "نمایش تصویر راهنما"
+            text = tr(
+                "نمایش تصویر راهنما",
+                "Show Guide Image"
+            )
             textSize = 15f
             setTextColor(Color.WHITE)
             isChecked = guideVisible
@@ -583,8 +676,13 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
+        // شفافیت
+
         val opacityLabel = TextView(this).apply {
-            text = "شفافیت تصویر راهنما: ${guideOpacity * 100 / 255}%"
+            text = tr(
+                "شفافیت تصویر راهنما: ${guideOpacity * 100 / 255}%",
+                "Guide opacity: ${guideOpacity * 100 / 255}%"
+            )
             textSize = 14f
             setTextColor(industrialLightGold)
             setPadding(0, dp(12), 0, dp(5))
@@ -605,8 +703,38 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
+        // بزرگ‌نمایی
+
+        val zoomLabel = TextView(this).apply {
+            text = tr(
+                "بزرگ‌نمایی تصویر: ${guideZoom}%",
+                "Guide zoom: ${guideZoom}%"
+            )
+            textSize = 14f
+            setTextColor(industrialLightGold)
+            setPadding(0, dp(12), 0, dp(5))
+        }
+
+        content.addView(zoomLabel)
+
+        val zoomSeekBar = SeekBar(this).apply {
+            max = 150
+            progress = guideZoom - 50
+        }
+
+        content.addView(
+            zoomSeekBar,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(48)
+            )
+        )
+
         val helpText = TextView(this).apply {
-            text = "تصویر راهنما به صورت خودکار متناسب با صفحه دوربین تنظیم می‌شود."
+            text = tr(
+                "تصویر راهنما متناسب با صفحه دوربین تنظیم می‌شود. بزرگ‌نمایی از ۵۰ تا ۲۰۰ درصد قابل تغییر است.",
+                "The guide image adjusts to the camera screen. Zoom can be changed from 50% to 200%."
+            )
             textSize = 12f
             setTextColor(Color.LTGRAY)
             gravity = Gravity.CENTER
@@ -639,8 +767,10 @@ class MainActivity : AppCompatActivity() {
                     guideOpacity = progress * 255 / 100
                     guideImage.alpha = guideOpacity / 255f
 
-                    opacityLabel.text =
-                        "شفافیت تصویر راهنما: $progress%"
+                    opacityLabel.text = tr(
+                        "شفافیت تصویر راهنما: $progress%",
+                        "Guide opacity: $progress%"
+                    )
                 }
 
                 override fun onStartTrackingTouch(
@@ -659,11 +789,84 @@ class MainActivity : AppCompatActivity() {
             }
         )
 
+        zoomSeekBar.setOnSeekBarChangeListener(
+            object : SeekBar.OnSeekBarChangeListener {
+
+                override fun onProgressChanged(
+                    seekBar: SeekBar?,
+                    progress: Int,
+                    fromUser: Boolean
+                ) {
+
+                    guideZoom = progress + 50
+
+                    zoomLabel.text = tr(
+                        "بزرگ‌نمایی تصویر: ${guideZoom}%",
+                        "Guide zoom: ${guideZoom}%"
+                    )
+
+                    updateGuideSize()
+                }
+
+                override fun onStartTrackingTouch(
+                    seekBar: SeekBar?
+                ) {
+                }
+
+                override fun onStopTrackingTouch(
+                    seekBar: SeekBar?
+                ) {
+
+                    prefs.edit()
+                        .putInt("guide_zoom", guideZoom)
+                        .apply()
+                }
+            }
+        )
+
         AlertDialog.Builder(this)
             .setView(content)
-            .setPositiveButton("ذخیره و بستن", null)
-            .setNegativeButton("بستن", null)
+            .setPositiveButton(
+                tr("ذخیره و بستن", "Save and Close")
+            ) { _, _ ->
+
+                prefs.edit()
+                    .putBoolean("guide_visible", guideVisible)
+                    .putInt("guide_opacity", guideOpacity)
+                    .putInt("guide_zoom", guideZoom)
+                    .apply()
+            }
+            .setNegativeButton(
+                tr("بستن", "Close"),
+                null
+            )
             .show()
+    }
+
+    private fun updateGuideSize() {
+
+        if (!::guideImage.isInitialized) return
+
+        val parent = guideImage.parent as? FrameLayout ?: return
+
+        val width = parent.width
+        val height = parent.height
+
+        if (width <= 0 || height <= 0) return
+
+        val guideWidth =
+            (width * 0.88f * guideZoom / 100f).toInt()
+
+        val guideHeight =
+            (height * 0.82f * guideZoom / 100f).toInt()
+
+        guideImage.layoutParams = FrameLayout.LayoutParams(
+            guideWidth,
+            guideHeight,
+            Gravity.CENTER
+        )
+
+        guideImage.requestLayout()
     }
 
     // --------------------------------------------------
@@ -743,8 +946,10 @@ class MainActivity : AppCompatActivity() {
 
                                     totalCount += trackingResult.newCounts
 
-                                    countText.text =
-                                        "تعداد: $totalCount"
+                                    countText.text = tr(
+                                        "تعداد: $totalCount",
+                                        "Count: $totalCount"
+                                    )
                                 }
                             }
                         }
@@ -759,8 +964,10 @@ class MainActivity : AppCompatActivity() {
 
                         runOnUiThread {
                             if (!isFinishing && !isDestroyed) {
-                                statusText.text =
-                                    "خطا در پردازش تصویر"
+                                statusText.text = tr(
+                                    "خطا در پردازش تصویر",
+                                    "Image processing error"
+                                )
                             }
                         }
 
@@ -794,7 +1001,10 @@ class MainActivity : AppCompatActivity() {
                 )
 
                 if (::statusText.isInitialized) {
-                    statusText.text = "خطای راه‌اندازی دوربین"
+                    statusText.text = tr(
+                        "خطای راه‌اندازی دوربین",
+                        "Camera initialization error"
+                    )
                 }
             }
 
@@ -808,7 +1018,10 @@ class MainActivity : AppCompatActivity() {
     private fun stopCounting() {
 
         if (!running) {
-            statusText.text = "شمارش قبلاً متوقف شده است"
+            statusText.text = tr(
+                "شمارش قبلاً متوقف شده است",
+                "Counting is already stopped"
+            )
             return
         }
 
@@ -821,7 +1034,10 @@ class MainActivity : AppCompatActivity() {
             sessionSaved = true
         }
 
-        statusText.text = "شمارش متوقف شد"
+        statusText.text = tr(
+            "شمارش متوقف شد",
+            "Counting stopped"
+        )
     }
 
     // --------------------------------------------------
@@ -831,25 +1047,44 @@ class MainActivity : AppCompatActivity() {
     private fun resetCounting() {
 
         AlertDialog.Builder(this)
-            .setTitle("ریست شمارش")
-            .setMessage("آیا شمارش فعلی از صفر شروع شود؟")
-            .setNegativeButton("انصراف", null)
-            .setPositiveButton("ریست") { _, _ ->
+            .setTitle(tr("ریست شمارش", "Reset Counter"))
+            .setMessage(
+                tr(
+                    "آیا شمارش فعلی از صفر شروع شود؟",
+                    "Do you want to reset the current count?"
+                )
+            )
+            .setNegativeButton(
+                tr("انصراف", "Cancel"),
+                null
+            )
+            .setPositiveButton(
+                tr("ریست", "Reset")
+            ) { _, _ ->
 
                 totalCount = 0
 
                 tracker.reset()
 
-                countText.text = "تعداد: 0"
+                countText.text = tr(
+                    "تعداد: 0",
+                    "Count: 0"
+                )
 
                 sessionSaved = false
                 running = true
 
                 statusText.text =
                     if (setupMode) {
-                        "خطوط شمارش را تنظیم کنید"
+                        tr(
+                            "خطوط شمارش را تنظیم کنید",
+                            "Configure counting lines"
+                        )
                     } else {
-                        "شمارش از صفر شروع شد"
+                        tr(
+                            "شمارش از صفر شروع شد",
+                            "Counting restarted from zero"
+                        )
                     }
             }
             .show()
@@ -895,9 +1130,17 @@ class MainActivity : AppCompatActivity() {
         if (history.length() == 0) {
 
             AlertDialog.Builder(this)
-                .setTitle("تاریخچه شمارش")
-                .setMessage("هنوز سابقه‌ای ثبت نشده است.")
-                .setPositiveButton("باشه", null)
+                .setTitle(tr("تاریخچه شمارش", "Counting History"))
+                .setMessage(
+                    tr(
+                        "هنوز سابقه‌ای ثبت نشده است.",
+                        "No records have been saved yet."
+                    )
+                )
+                .setPositiveButton(
+                    tr("باشه", "OK"),
+                    null
+                )
                 .show()
 
             return
@@ -910,25 +1153,52 @@ class MainActivity : AppCompatActivity() {
             val item = history.getJSONObject(i)
 
             items.add(
-                "تاریخ: ${item.optString("date")}\n" +
-                    "ساعت: ${item.optString("time")}\n" +
-                    "تعداد کیسه: ${item.optInt("count")}"
+                tr(
+                    "تاریخ: ${item.optString("date")}\n" +
+                        "ساعت: ${item.optString("time")}\n" +
+                        "تعداد کیسه: ${item.optInt("count")}",
+                    "Date: ${item.optString("date")}\n" +
+                        "Time: ${item.optString("time")}\n" +
+                        "Bag count: ${item.optInt("count")}"
+                )
             )
         }
 
         val text = items.joinToString("\n\n──────────────\n\n")
 
         AlertDialog.Builder(this)
-            .setTitle("تاریخچه شمارش‌ها")
+            .setTitle(
+                tr(
+                    "تاریخچه شمارش‌ها",
+                    "Counting History"
+                )
+            )
             .setMessage(text)
-            .setPositiveButton("بستن", null)
-            .setNeutralButton("پاک کردن تاریخچه") { _, _ ->
+            .setPositiveButton(
+                tr("بستن", "Close"),
+                null
+            )
+            .setNeutralButton(
+                tr("پاک کردن تاریخچه", "Clear History")
+            ) { _, _ ->
 
                 AlertDialog.Builder(this)
-                    .setTitle("حذف تاریخچه")
-                    .setMessage("آیا از حذف تمام سوابق مطمئن هستید؟")
-                    .setNegativeButton("انصراف", null)
-                    .setPositiveButton("حذف") { _, _ ->
+                    .setTitle(
+                        tr("حذف تاریخچه", "Delete History")
+                    )
+                    .setMessage(
+                        tr(
+                            "آیا از حذف تمام سوابق مطمئن هستید؟",
+                            "Are you sure you want to delete all records?"
+                        )
+                    )
+                    .setNegativeButton(
+                        tr("انصراف", "Cancel"),
+                        null
+                    )
+                    .setPositiveButton(
+                        tr("حذف", "Delete")
+                    ) { _, _ ->
 
                         prefs.edit()
                             .putString("records", "[]")
@@ -1000,7 +1270,23 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val message = """
+        val message = if (isEnglish) {
+
+            """
+            Bag Counting Statistics
+
+            Today: $daily bags
+
+            This week: $weekly bags
+
+            This month: $monthly bags
+
+            Total records: $all bags
+            """.trimIndent()
+
+        } else {
+
+            """
             آمار شمارش کیسه‌ها
 
             امروز: $daily کیسه
@@ -1010,12 +1296,18 @@ class MainActivity : AppCompatActivity() {
             این ماه: $monthly کیسه
 
             مجموع کل سوابق: $all کیسه
-        """.trimIndent()
+            """.trimIndent()
+        }
 
         AlertDialog.Builder(this)
-            .setTitle("آمار عملکرد")
+            .setTitle(
+                tr("آمار عملکرد", "Statistics")
+            )
             .setMessage(message)
-            .setPositiveButton("بستن", null)
+            .setPositiveButton(
+                tr("بستن", "Close"),
+                null
+            )
             .show()
     }
 
@@ -1031,9 +1323,15 @@ class MainActivity : AppCompatActivity() {
 
             AlertDialog.Builder(this)
                 .setMessage(
-                    "برای ساخت گزارش، ابتدا باید سابقه شمارش داشته باشید."
+                    tr(
+                        "برای ساخت گزارش، ابتدا باید سابقه شمارش داشته باشید.",
+                        "You need counting records before creating a report."
+                    )
                 )
-                .setPositiveButton("باشه", null)
+                .setPositiveButton(
+                    tr("باشه", "OK"),
+                    null
+                )
                 .show()
 
             return
@@ -1044,7 +1342,11 @@ class MainActivity : AppCompatActivity() {
             pendingExcelData = createExcelFile(history)
 
             excelLauncher.launch(
-                "گزارش_شمارش_کیسه_قند.xlsx"
+                if (isEnglish) {
+                    "Sugar_Bag_Count_Report.xlsx"
+                } else {
+                    "گزارش_شمارش_کیسه_قند.xlsx"
+                }
             )
 
         } catch (e: Exception) {
@@ -1058,9 +1360,19 @@ class MainActivity : AppCompatActivity() {
             )
 
             AlertDialog.Builder(this)
-                .setTitle("خطای ساخت فایل")
-                .setMessage("ساخت فایل Excel با خطا مواجه شد.")
-                .setPositiveButton("باشه", null)
+                .setTitle(
+                    tr("خطای ساخت فایل", "File Creation Error")
+                )
+                .setMessage(
+                    tr(
+                        "ساخت فایل Excel با خطا مواجه شد.",
+                        "Failed to create the Excel file."
+                    )
+                )
+                .setPositiveButton(
+                    tr("باشه", "OK"),
+                    null
+                )
                 .show()
         }
     }
@@ -1072,7 +1384,6 @@ class MainActivity : AppCompatActivity() {
         try {
 
             val output = contentResolver.openOutputStream(uri)
-
                 ?: throw IllegalStateException("Output stream unavailable")
 
             output.use {
@@ -1081,9 +1392,19 @@ class MainActivity : AppCompatActivity() {
             }
 
             AlertDialog.Builder(this)
-                .setTitle("ذخیره موفق")
-                .setMessage("فایل Excel با موفقیت ذخیره شد.")
-                .setPositiveButton("باشه", null)
+                .setTitle(
+                    tr("ذخیره موفق", "Saved Successfully")
+                )
+                .setMessage(
+                    tr(
+                        "فایل Excel با موفقیت ذخیره شد.",
+                        "Excel file saved successfully."
+                    )
+                )
+                .setPositiveButton(
+                    tr("باشه", "OK"),
+                    null
+                )
                 .show()
 
         } catch (e: Exception) {
@@ -1095,8 +1416,16 @@ class MainActivity : AppCompatActivity() {
             )
 
             AlertDialog.Builder(this)
-                .setMessage("خطا در ذخیره فایل Excel")
-                .setPositiveButton("باشه", null)
+                .setMessage(
+                    tr(
+                        "خطا در ذخیره فایل Excel",
+                        "Error saving Excel file"
+                    )
+                )
+                .setPositiveButton(
+                    tr("باشه", "OK"),
+                    null
+                )
                 .show()
 
         } finally {
@@ -1135,13 +1464,28 @@ class MainActivity : AppCompatActivity() {
 
             val rows = StringBuilder()
 
-            rows.append(
-                """<row r="1"><c r="A1" t="inlineStr"><is><t>گزارش شمارش کیسه‌های قند</t></is></c></row>"""
+            val title = xmlEscape(
+                tr(
+                    "گزارش شمارش کیسه‌های قند",
+                    "Sugar Bag Counting Report"
+                )
             )
 
+            val rowHeaders = if (isEnglish) {
+                """
+                <row r="2"><c r="A2" t="inlineStr"><is><t>No.</t></is></c><c r="B2" t="inlineStr"><is><t>Date</t></is></c><c r="C2" t="inlineStr"><is><t>Time</t></is></c><c r="D2" t="inlineStr"><is><t>Bag Count</t></is></c></row>
+                """.trimIndent()
+            } else {
+                """
+                <row r="2"><c r="A2" t="inlineStr"><is><t>ردیف</t></is></c><c r="B2" t="inlineStr"><is><t>تاریخ شمسی</t></is></c><c r="C2" t="inlineStr"><is><t>ساعت</t></is></c><c r="D2" t="inlineStr"><is><t>تعداد کیسه</t></is></c></row>
+                """.trimIndent()
+            }
+
             rows.append(
-                """<row r="2"><c r="A2" t="inlineStr"><is><t>ردیف</t></is></c><c r="B2" t="inlineStr"><is><t>تاریخ شمسی</t></is></c><c r="C2" t="inlineStr"><is><t>ساعت</t></is></c><c r="D2" t="inlineStr"><is><t>تعداد کیسه</t></is></c></row>"""
+                """<row r="1"><c r="A1" t="inlineStr"><is><t>$title</t></is></c></row>"""
             )
+
+            rows.append(rowHeaders)
 
             for (i in 0 until history.length()) {
 
@@ -1158,8 +1502,12 @@ class MainActivity : AppCompatActivity() {
                 )
             }
 
+            val totalLabel = xmlEscape(
+                tr("مجموع کل", "Grand Total")
+            )
+
             rows.append(
-                """<row r="$totalRow"><c r="C$totalRow" t="inlineStr"><is><t>مجموع کل</t></is></c><c r="D$totalRow" t="n"><v>$total</v></c></row>"""
+                """<row r="$totalRow"><c r="C$totalRow" t="inlineStr"><is><t>$totalLabel</t></is></c><c r="D$totalRow" t="n"><v>$total</v></c></row>"""
             )
 
             addEntry(
@@ -1172,9 +1520,13 @@ class MainActivity : AppCompatActivity() {
                 """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>"""
             )
 
+            val sheetName = xmlEscape(
+                tr("گزارش شمارش", "Counting Report")
+            )
+
             addEntry(
                 "xl/workbook.xml",
-                """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets><sheet name="گزارش شمارش" sheetId="1" r:id="rId1"/></sheets></workbook>"""
+                """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets><sheet name="$sheetName" sheetId="1" r:id="rId1"/></sheets></workbook>"""
             )
 
             addEntry(
@@ -1184,7 +1536,7 @@ class MainActivity : AppCompatActivity() {
 
             addEntry(
                 "xl/worksheets/sheet1.xml",
-                """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:$lastColumn$totalRow"/><sheetViews><sheetView workbookViewId="0" rightToLeft="1"/></sheetViews><sheetFormatPr defaultRowHeight="20"/><cols><col min="1" max="1" width="12" customWidth="1"/><col min="2" max="2" width="22" customWidth="1"/><col min="3" max="3" width="18" customWidth="1"/><col min="4" max="4" width="20" customWidth="1"/></cols><sheetData>$rows</sheetData></worksheet>"""
+                """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:$lastColumn$totalRow"/><sheetViews><sheetView workbookViewId="0" rightToLeft="${if (isEnglish) 0 else 1}"/></sheetViews><sheetFormatPr defaultRowHeight="20"/><cols><col min="1" max="1" width="12" customWidth="1"/><col min="2" max="2" width="22" customWidth="1"/><col min="3" max="3" width="18" customWidth="1"/><col min="4" max="4" width="20" customWidth="1"/></cols><sheetData>$rows</sheetData></worksheet>"""
             )
         }
 
@@ -1238,7 +1590,11 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER
             setPadding(dp(20), dp(24), dp(20), dp(24))
             setBackground(aboutBackground(white, 22, border))
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            layoutDirection = if (isEnglish) {
+                View.LAYOUT_DIRECTION_LTR
+            } else {
+                View.LAYOUT_DIRECTION_RTL
+            }
         }
 
         val accent = View(this).apply {
@@ -1254,7 +1610,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         val title = TextView(this).apply {
-            text = "درباره برنامه"
+            text = tr("درباره برنامه", "About")
             textSize = 25f
             setTextColor(dark)
             gravity = Gravity.CENTER
@@ -1264,7 +1620,10 @@ class MainActivity : AppCompatActivity() {
         content.addView(title)
 
         val subtitle = TextView(this).apply {
-            text = "معرفی سامانه و عوامل توسعه"
+            text = tr(
+                "معرفی سامانه و عوامل توسعه",
+                "System and Development Team"
+            )
             textSize = 13f
             setTextColor(muted)
             gravity = Gravity.CENTER
@@ -1281,8 +1640,8 @@ class MainActivity : AppCompatActivity() {
         logos.addView(
             createAboutLogoCard(
                 R.drawable.university_logo,
-                "دانشگاه آزاد اسلامی",
-                "واحد همدان"
+                tr("دانشگاه آزاد اسلامی", "Islamic Azad University"),
+                tr("واحد همدان", "Hamedan Branch")
             ),
             LinearLayout.LayoutParams(0, dp(155), 1f).apply {
                 marginEnd = dp(6)
@@ -1292,8 +1651,8 @@ class MainActivity : AppCompatActivity() {
         logos.addView(
             createAboutLogoCard(
                 R.drawable.factory_logo,
-                "شرکت قند هکمتان",
-                "همدان"
+                tr("شرکت قند هکمتان", "Hekmataneh Sugar Company"),
+                tr("همدان", "Hamedan, Iran")
             ),
             LinearLayout.LayoutParams(0, dp(155), 1f).apply {
                 marginStart = dp(6)
@@ -1304,13 +1663,19 @@ class MainActivity : AppCompatActivity() {
 
         addAboutText(
             content,
-            "سامانه هوشمند شمارش کیسه‌های قند",
+            tr(
+                "سامانه هوشمند شمارش کیسه‌های قند",
+                "Smart Sugar Bag Counting System"
+            ),
             20f,
             true
         )
 
         val description = TextView(this).apply {
-            text = "طراحی و توسعه سامانه هوشمند مبتنی بر بینایی ماشین"
+            text = tr(
+                "طراحی و توسعه سامانه هوشمند مبتنی بر بینایی ماشین",
+                "An intelligent machine-vision-based counting system"
+            )
             textSize = 12f
             setTextColor(muted)
             gravity = Gravity.CENTER
@@ -1334,7 +1699,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         val teamTitle = TextView(this).apply {
-            text = "هسته فناور کریستال‌بین"
+            text = "CRYSTAL.BIN"
             textSize = 19f
             setTextColor(green)
             gravity = Gravity.CENTER
@@ -1345,7 +1710,10 @@ class MainActivity : AppCompatActivity() {
         content.addView(teamTitle)
 
         val membersTitle = TextView(this).apply {
-            text = "تیم توسعه پروژه"
+            text = tr(
+                "هسته فناور کریستال‌بین",
+                "Crystal.BIN Technology Team"
+            )
             textSize = 13f
             setTextColor(muted)
             gravity = Gravity.CENTER
@@ -1355,10 +1723,20 @@ class MainActivity : AppCompatActivity() {
         content.addView(membersTitle)
 
         val members = listOf(
-            "محمدمهدی شیرمحمدی" to "استاد راهنما",
-            "زهرا ده‌ده‌سی" to "عضو تیم توسعه",
-            "علی قاسمی" to "عضو تیم توسعه",
-            "سینا بالائی" to "عضو تیم توسعه"
+            tr("محمدمهدی شیرمحمدی", "Mohammad Mehdi ShirMohammadi") to
+                tr("استاد راهنما", "Supervisor"),
+
+            tr("دکتر معین نظری", "Dr. Moin Nazari") to
+                tr("همکار علمی", "Academic Collaborator"),
+
+            tr("زهرا ده‌ده‌سی", "Zahra Dehdehsi") to
+                tr("عضو تیم توسعه", "Development Team"),
+
+            tr("علی قاسمی", "Ali Qasemi") to
+                tr("عضو تیم توسعه", "Development Team"),
+
+            tr("سینا بالائی", "Sina Balaei") to
+                tr("عضو تیم توسعه", "Development Team")
         )
 
         members.forEach { member ->
@@ -1377,8 +1755,46 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
+        addAboutText(
+            content,
+            tr(
+                "اطلاعات تماس",
+                "Contact Information"
+            ),
+            17f,
+            true
+        )
+
+        val professorEmail = TextView(this).apply {
+            text = "Mmshirmohammadi@iauh.ac.ir"
+            textSize = 12f
+            setTextColor(industrialLightGold)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(5), 0, dp(5))
+        }
+
+        professorEmail.setOnClickListener {
+            openEmail("Mmshirmohammadi@iauh.ac.ir")
+        }
+
+        content.addView(professorEmail)
+
+        val userEmail = TextView(this).apply {
+            text = "zahradhdhsi@gmail.com"
+            textSize = 12f
+            setTextColor(industrialLightGold)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(5), 0, dp(5))
+        }
+
+        userEmail.setOnClickListener {
+            openEmail("zahradhdhsi@gmail.com")
+        }
+
+        content.addView(userEmail)
+
         val footer = TextView(this).apply {
-            text = "CRYSTAL VISION"
+            text = "CRYSTAL.BIN"
             textSize = 11f
             letterSpacing = 2f
             setTextColor(green)
@@ -1397,7 +1813,10 @@ class MainActivity : AppCompatActivity() {
 
         val dialog = AlertDialog.Builder(this)
             .setView(scroll)
-            .setPositiveButton("بستن", null)
+            .setPositiveButton(
+                tr("بستن", "Close"),
+                null
+            )
             .create()
 
         dialog.show()
@@ -1411,6 +1830,23 @@ class MainActivity : AppCompatActivity() {
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE)
             .setTextColor(green)
+    }
+
+    private fun openEmail(email: String) {
+
+        try {
+
+            val intent = Intent(
+                Intent.ACTION_SENDTO,
+                Uri.parse("mailto:$email")
+            )
+
+            startActivity(intent)
+
+        } catch (e: Exception) {
+
+            Log.e("SugarCounter", "Email app unavailable", e)
+        }
     }
 
     private fun createAboutLogoCard(
@@ -1486,7 +1922,11 @@ class MainActivity : AppCompatActivity() {
                     industrialBorder
                 )
             )
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            layoutDirection = if (isEnglish) {
+                View.LAYOUT_DIRECTION_LTR
+            } else {
+                View.LAYOUT_DIRECTION_RTL
+            }
         }
 
         val indicator = View(this).apply {
@@ -1593,7 +2033,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // --------------------------------------------------
-    // تاریخ شمسی
+    // تاریخ
     // --------------------------------------------------
 
     private fun getCurrentTime(): String {
