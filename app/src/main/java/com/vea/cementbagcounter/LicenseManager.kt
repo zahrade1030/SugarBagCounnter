@@ -4,18 +4,22 @@ package com.vea.cementbagcounter
 import android.content.Context
 import android.provider.Settings
 import android.util.Base64
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+
 import org.json.JSONObject
+
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.Signature
 import java.security.spec.X509EncodedKeySpec
 import java.security.KeyFactory
+import java.util.Calendar
+import java.util.Locale
+
 import javax.crypto.KeyGenerator
 import javax.crypto.Mac
 import javax.crypto.SecretKey
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
-import java.util.Calendar
 
 object LicenseManager {
 
@@ -25,7 +29,6 @@ object LicenseManager {
     private const val KEY_LAST_TIME = "last_time"
     private const val KEY_TIME_MAC = "time_mac"
 
-    // CRYSTAL.BIN PRODUCT
     private const val PRODUCT_ID = "CRYSTAL_BAG_COUNTER"
     private const val LICENSE_VERSION = 1
 
@@ -37,12 +40,7 @@ object LicenseManager {
     private const val SIGNATURE_ALGORITHM = "SHA256withRSA"
     private const val HMAC_ALGORITHM = "HmacSHA256"
 
-    /*
-     * Public key only.
-     * Private key must NEVER be included in the Android application.
-     *
-     * This key is preserved from the original LicenseManager.
-     */
+    private const val DAY_MS = 86_400_000L
 
     private const val PUBLIC_KEY_BASE64 =
         "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuI3IqY+X0dkdOSmxAmxJtDLiKuiSuNRHlmtaAWBU2u01KJEnhYwLjOgNgFBsp6hAduIyuEAqvrFqqBptl8YF+Ar59HIETNfdW+SzTtrwlxoUzMH0/3JBUksTs1AE2M2pvmN2HhTLz20GaeADZxqGCzrFAVLLmzd7NIY96c988TRDK0nyBx0yGkcBOgfBuju7oXTRFEFa6q/DVkmYSX64dpFnPo2PxCbJ5H2BccrZfC/jxcRu0B1034+NMYypqbrBrh/AR9UlqI8QomN3t1ZtUQ0g/7KUpVTVm0ZUyq3AruranUCQMWKDw/OS6l7q9UkcTBuHYAFeouPH/RvvbBW7OQIDAQAB"
@@ -85,9 +83,7 @@ object LicenseManager {
 
         val raw = "$PRODUCT_ID:$androidId"
 
-        return sha256(raw)
-            .take(32)
-            .uppercase()
+        return sha256(raw).take(32).uppercase()
     }
 
     private fun sha256(value: String): String {
@@ -109,9 +105,7 @@ object LicenseManager {
         KeyFactory.getInstance("RSA").generatePublic(
             X509EncodedKeySpec(
                 Base64.decode(
-                    PUBLIC_KEY_BASE64
-                        .replace("\n", "")
-                        .replace(" ", ""),
+                    PUBLIC_KEY_BASE64,
                     Base64.DEFAULT
                 )
             )
@@ -140,9 +134,6 @@ object LicenseManager {
 
     // --------------------------------------------------
     // LICENSE PARSING
-    //
-    // FORMAT:
-    // CRYSTAL1.BASE64_PAYLOAD.BASE64_SIGNATURE
     // --------------------------------------------------
 
     private data class ParsedLicense(
@@ -165,7 +156,9 @@ object LicenseManager {
 
             if (parts.size != 3) return null
 
-            if (parts[0] != "CRYSTAL1") return null
+            if (parts[0] != "CRYSTAL1") {
+                return null
+            }
 
             val payloadBytes = Base64.decode(
                 parts[1],
@@ -181,20 +174,12 @@ object LicenseManager {
                     Base64.NO_PADDING
             )
 
-            if (
-                !verifySignature(
-                    payloadBytes,
-                    signatureBytes
-                )
-            ) {
+            if (!verifySignature(payloadBytes, signatureBytes)) {
                 return null
             }
 
             val json = JSONObject(
-                String(
-                    payloadBytes,
-                    Charsets.UTF_8
-                )
+                String(payloadBytes, Charsets.UTF_8)
             )
 
             ParsedLicense(
@@ -231,7 +216,8 @@ object LicenseManager {
 
         if (
             license.licenseId.isBlank() ||
-            license.customerName.isBlank()
+            license.customerName.isBlank() ||
+            license.deviceId.isBlank()
         ) {
             return LicenseStatus.INVALID
         }
@@ -247,16 +233,13 @@ object LicenseManager {
             return LicenseStatus.INVALID
         }
 
-        // No fixed 36-month limit.
-        // Expiry is determined by the signed license itself.
-
         val now = System.currentTimeMillis()
 
         if (license.issuedAt > now + CLOCK_TOLERANCE) {
             return LicenseStatus.INVALID
         }
 
-        if (now > license.expiresAt) {
+        if (now >= license.expiresAt) {
             return LicenseStatus.EXPIRED
         }
 
@@ -286,15 +269,18 @@ object LicenseManager {
             return false
         }
 
-        val p = prefs(context)
+        // First save secure time.
+        // Do not store the license if secure time fails.
 
-        val success = p.edit()
+        if (!saveSecureTime(context)) {
+            return false
+        }
+
+        // Save license only after secure time succeeds.
+
+        return prefs(context).edit()
             .putString(KEY_LICENSE, activationCode.trim())
             .commit()
-
-        if (!success) return false
-
-        return saveSecureTime(context)
     }
 
     // --------------------------------------------------
@@ -367,7 +353,6 @@ object LicenseManager {
         return try {
 
             val now = System.currentTimeMillis()
-
             val mac = calculateTimeMac(now)
 
             prefs(context).edit()
@@ -398,9 +383,12 @@ object LicenseManager {
                 null
             )
 
-            if (savedTime == 0L || savedMac == null) {
+            // No previous secure time.
+            if (savedTime <= 0 || savedMac == null) {
                 return saveSecureTime(context)
             }
+
+            // Verify stored timestamp integrity.
 
             val expectedMac = calculateTimeMac(
                 savedTime
@@ -408,8 +396,8 @@ object LicenseManager {
 
             if (
                 !MessageDigest.isEqual(
-                    savedMac.toByteArray(),
-                    expectedMac.toByteArray()
+                    savedMac.toByteArray(Charsets.UTF_8),
+                    expectedMac.toByteArray(Charsets.UTF_8)
                 )
             ) {
                 return false
@@ -417,9 +405,13 @@ object LicenseManager {
 
             val now = System.currentTimeMillis()
 
+            // Detect significant clock rollback.
+
             if (now < savedTime - CLOCK_TOLERANCE) {
                 return false
             }
+
+            // Update secure timestamp.
 
             saveSecureTime(context)
 
@@ -495,14 +487,13 @@ object LicenseManager {
         val status = getStatus(context)
 
         val expiry = license?.expiresAt ?: 0L
+        val now = System.currentTimeMillis()
 
-        val remainingDays = if (
-            expiry > System.currentTimeMillis()
-        ) {
-            (
-                (expiry - System.currentTimeMillis()) /
-                    86_400_000L
-            ).coerceAtLeast(0)
+        // Round up partial days.
+
+        val remainingDays = if (expiry > now) {
+            ((expiry - now + DAY_MS - 1) / DAY_MS)
+                .coerceAtLeast(0)
         } else {
             0L
         }
@@ -522,27 +513,21 @@ object LicenseManager {
         context: Context
     ): Long {
 
-        return getLicenseInfo(
-            context
-        ).remainingDays
+        return getLicenseInfo(context).remainingDays
     }
 
     fun getExpiryDate(
         context: Context
     ): Long {
 
-        return getLicenseInfo(
-            context
-        ).expiryDate
+        return getLicenseInfo(context).expiryDate
     }
 
     fun getActivationDate(
         context: Context
     ): Long {
 
-        return getLicenseInfo(
-            context
-        ).activationDate
+        return getLicenseInfo(context).activationDate
     }
 
     // --------------------------------------------------
@@ -568,25 +553,32 @@ object LicenseManager {
         context: Context
     ): String {
 
+        val english = context
+            .getSharedPreferences(
+                "app_settings",
+                Context.MODE_PRIVATE
+            )
+            .getString("language", "fa") == "en"
+
         return when (getStatus(context)) {
 
             LicenseStatus.ACTIVE ->
-                "فعال"
+                if (english) "Active" else "فعال"
 
             LicenseStatus.EXPIRED ->
-                "منقضی شده"
+                if (english) "Expired" else "منقضی شده"
 
             LicenseStatus.INVALID ->
-                "مجوز نامعتبر"
+                if (english) "Invalid license" else "مجوز نامعتبر"
 
             LicenseStatus.NOT_ACTIVATED ->
-                "فعال نشده"
+                if (english) "Not activated" else "فعال نشده"
 
             LicenseStatus.DEVICE_MISMATCH ->
-                "مجوز متعلق به دستگاه دیگری است"
+                if (english) "Wrong device" else "مجوز متعلق به دستگاه دیگری است"
 
             LicenseStatus.CLOCK_TAMPERED ->
-                "تغییر ساعت دستگاه شناسایی شد"
+                if (english) "Clock tampering detected" else "تغییر ساعت دستگاه شناسایی شد"
         }
     }
 
@@ -618,7 +610,9 @@ object LicenseManager {
             Calendar.YEAR
         )
 
-        return "%04d/%02d/%02d".format(
+        return String.format(
+            Locale.US,
+            "%04d/%02d/%02d",
             year,
             month,
             day
